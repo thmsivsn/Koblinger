@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Koblinger – Norsk (mobiloptimalisert)</title>
+  <style>
+    :root{
+      --bg: #0f1220;
+      --panel: #181c2f;
+      --panel-2: #1f2540;
+      --text: #f3f4f6;
+      --muted: #aab1c5;
+      --accent: #8fb3ff;
+      --tile: #232946;
+      --tile-hover: #2a2f56;
+      --tile-selected: #3a3f6b;
+
+      --yellow: #f7d154;
+      --green:  #58a700;
+      --blue:   #3c82f6;
+      --purple: #a855f7;
+
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 14px;
+
+      /* Mobil “vh”-fix */
+      --vh: 1vh;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:var(--bg); color:var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      font-size: clamp(15px, 1.8vw, 17px);
+      line-height: 1.35;
+      display:flex; align-items:stretch; justify-content:center;
+      padding: max(14px, 2vh) max(14px, 2vw);
+      padding-top: calc(max(14px, 2vh) + var(--safe-top));
+      padding-bottom: calc(max(14px, 2vh) + var(--safe-bottom));
+      -webkit-text-size-adjust: 100%;
+      min-height: calc(var(--vh) * 100);
+      touch-action: manipulation;
+    }
+    .app{
+      width:min(1000px, 100%); background:var(--panel); border-radius:20px; box-shadow:var(--shadow);
+      padding:12px 12px 18px; border:1px solid #283054;
+    }
+    header{
+      position: sticky; top: 0; z-index: 5;
+      background: linear-gradient(180deg, rgba(24,28,47,0.98), rgba(24,28,47,0.92));
+      border-bottom: 1px solid #2b3158;
+      margin: -12px -12px 12px -12px; padding: 10px 12px;
+      padding-top: calc(10px + var(--safe-top));
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      backdrop-filter: blur(4px);
+    }
+    .title{display:flex; align-items:center; gap:10px; min-height:44px}
+    h1{font-size: clamp(18px, 3.8vw, 22px); margin:0; letter-spacing:.2px}
+    .badge{font-size:12px; color:var(--muted)}
+    .controls{
+      display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:flex-end;
+    }
+    button{
+      background:var(--panel-2); color:var(--text); border:1px solid #2b3158; border-radius:10px;
+      padding:10px 12px; cursor:pointer; transition:.15s; font-weight:600;
+      min-height:44px; /* mobil trykkflate */
+      -webkit-tap-highlight-color: transparent;
+    }
+    button:hover{filter:brightness(1.06)}
+    button:disabled{opacity:.5; cursor:not-allowed}
+    .pill{
+      background:#101326; border:1px solid #2b3158; padding:8px 10px; border-radius:999px; color:var(--muted); font-size:13px;
+    }
+    .mistakes{
+      display:flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; background:#12162b; border:1px solid #2b3158;
+    }
+    .dot{ width:14px; height:14px; border-radius:50%; background:#2e375f; border:1px solid #3b4576; }
+    .dot.live{ background:#f25f5c; border-color:#ff8a86; box-shadow:0 0 0 2px rgba(242,95,92,.15) }
+
+    .grid{
+      margin-top:12px;
+      display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;
+    }
+    .tile{
+      user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
+      background:var(--tile); padding: clamp(12px, 1.8vh, 16px) 10px; border-radius:var(--radius);
+      border:1px solid #2b3158; text-align:center; cursor:pointer;
+      min-height: clamp(54px, 11vh, 86px); display:flex; align-items:center; justify-content:center;
+      font-weight:700; letter-spacing:.2px; box-shadow: inset 0 -2px 0 rgba(255,255,255,.03);
+      transition:transform .06s ease, background .12s ease, border-color .12s ease, box-shadow .12s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .tile:hover{background:var(--tile-hover)}
+    .tile.selected{background:var(--tile-selected); border-color:#3f4a8b; transform:translateY(-1px)}
+    .tile.disabled{opacity:.55; pointer-events:none}
+    .tile:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:12px}
+
+    .msg{ margin-top:12px; min-height:28px; color:var(--muted); font-weight:600; font-size: clamp(13px, 2.8vw, 15px); }
+    .msg.ok{color:#9cffd0}
+    .msg.warn{color:#ffe08a}
+    .msg.err{color:#ff9b9b}
+
+    .solved{ margin-top:16px; display:grid; gap:10px; }
+    .group-card{ border-radius:var(--radius); border:1px solid #2b3158; padding:10px 12px; background:#101326; }
+    .group-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; font-weight:800; letter-spacing:.2px;
+      padding:6px 0 10px; border-bottom:1px dashed #2b3158; margin-bottom:8px; }
+    .chip{ font-size:12px; color:#0d0d0d; font-weight:900; padding:4px 8px; border-radius:999px; }
+    .chip.yellow{background:var(--yellow)}
+    .chip.green{background:var(--green); color:#06210c}
+    .chip.blue{background:var(--blue)}
+    .chip.purple{background:var(--purple)}
+    .group-words{display:flex; gap:6px; flex-wrap:wrap}
+    .group-words .w{ background:#1a1f39; border:1px solid #2b3158; padding:6px 8px; border-radius:8px; font-weight:700; }
+
+    .toolbar{ display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; align-items:center; }
+    .share-box{ margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; color:var(--muted); font-size:14px; }
+
+    details{ background:#11162b; border:1px solid #2b3158; border-radius:12px; padding:10px 12px; margin-top:14px; }
+    summary{cursor:pointer; font-weight:800}
+    textarea{
+      width:100%; min-height:110px; resize:vertical; background:#0e1122; color:var(--text);
+      border:1px solid #2b3158; border-radius:10px; padding:10px; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .footer{
+      margin-top:18px; display:flex; justify-content:space-between; gap:10px; color:var(--muted); font-size:13px; flex-wrap:wrap;
+    }
+
+    /* Små skjermer */
+    @media (max-width:600px){
+      header{gap:10px}
+      .controls{justify-content:flex-end}
+      .grid{gap:8px}
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Koblinger">
+    <header>
+      <div class="title">
+        <h1>Koblinger</h1>
+        <span class="badge">Norsk – mobilvennlig</span>
+      </div>
+      <div class="controls">
+        <span id="dateLabel" class="pill" aria-live="polite"></span>
+        <div class="mistakes" title="Gjenværende feil">
+          <div class="dot live" aria-hidden="true"></div>
+          <div class="dot live" aria-hidden="true"></div>
+          <div class="dot live" aria-hidden="true"></div>
+          <div class="dot live" aria-hidden="true"></div>
+        </div>
+        <button id="btnShuffle" type="button" title="Bland rekkefølgen (B)">🔀 Bland</button>
+        <button id="btnClear" type="button" title="Fjern alle valg (Esc)">Fjern valg</button>
+        <button id="btnSubmit" type="button" disabled title="Send inn (Enter)">Send inn</button>
+      </div>
+    </header>
+
+    <div id="grid" class="grid" aria-live="polite" aria-label="Ordgrid"></div>
+    <div id="msg" class="msg" role="status"></div>
+
+    <div id="solved" class="solved" aria-live="polite"></div>
+
+    <div class="toolbar">
+      <button id="btnRestart" type="button">Start på nytt for i dag</button>
+      <button id="btnRandom" type="button" title="Tilfeldig puslespill (ikke-daglig)">Tilfeldig</button>
+      <button id="btnShare" type="button" disabled>Del resultat</button>
+    </div>
+    <div id="shareBox" class="share-box" style="display:none;">
+      <span id="shareStatus">Kopiert til utklippstavlen ✅</span>
+      <button id="btnCopyAgain" type="button">Kopier igjen</button>
+      <!-- iOS fallback: vis delingsteksten for manuell kopiering -->
+      <div id="shareManual" style="display:none; width:100%;">
+        <textarea id="shareText" readonly></textarea>
+        <button id="btnSelectAll" type="button">Marker alt</button>
+      </div>
+    </div>
+
+    <details>
+      <summary>Regler og alternativer</summary>
+      <p>
+        Finn 4 grupper med 4 ord som hører sammen. Marker fire ruter og trykk <b>Send inn</b>.
+        Du har <b>4 feil</b> totalt. Med <b>tre riktige + ett feil</b> får du “én unna”-hint og mister ett forsøk.
+      </p>
+      <ul>
+        <li><b>Bland</b> endrer rekkefølgen på gjenværende ruter.</li>
+        <li><b>Fjern valg</b> fjerner markeringene dine.</li>
+        <li><b>Start på nytt</b> nullstiller dagens fremdrift.</li>
+        <li><b>Tilfeldig</b> velger et ikke-daglig puslespill.</li>
+        <li>Tastatursnarveier: <kbd>Enter</kbd> send inn, <kbd>Esc</kbd> fjern valg, <kbd>B</kbd> bland.</li>
+      </ul>
+
+      <h3>Egendefinerte puslespill</h3>
+      <p>Lim inn JSON og trykk <b>Last</b>. Krav: 4 grupper × 4 ord, én av hver farge: <code>yellow, green, blue, purple</code>.</p>
+      <textarea id="customJson" spellcheck="false" placeholder='{
+  "id": "mitt-puslespill",
+  "groups": [
+    {"name": "FRUKTER", "color":"yellow", "words":["Eple","Pære","Banan","Appelsin"]},
+    {"name": "DATATERMER", "color":"green", "words":["Buffer","Cache","Kø","Stack"]},
+    {"name": "NORSKE BYER", "color":"blue", "words":["Oslo","Bergen","Trondheim","Stavanger"]},
+    {"name": "ROVDYR", "color":"purple", "words":["Ulv","Bjørn","Rev","Gaupe"]}
+  ]
+}'></textarea>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button id="btnLoadCustom" type="button">Last</button>
+        <button id="btnExample" type="button">Fyll eksempel</button>
+      </div>
+    </details>
+
+    <div class="footer">
+      <div>Daglig puslespill velges automatisk etter dato og lagres lokalt.</div>
+      <div>Alt kjører lokalt – ingen tredjepartsressurser.</div>
+    </div>
+  </div>
+
+  <script>
+    /* ========== MOBIL “vh”-FIX (adressefelt) ========== */
+    function setVH(){ document.documentElement.style.setProperty('--vh', (window.innerHeight * 0.01) + 'px'); }
+    setVH(); window.addEventListener('resize', setVH);
+
+    /* ========== KONFIG ========== */
+    const STATE_VERSION = 1;
+
+    /* ========== BRETTBANK – 16 brett ========== */
+    const PUZZLES = [
+      { id: "demo-1",
+        groups: [
+          { name: "FRUKTER", color:"yellow", words:["Eple","Pære","Banan","Appelsin"] },
+          { name: "DATATERMER (STRUKTURER)", color:"green", words:["Stack","Kø","Buffer","Cache"] },
+          { name: "NORSKE BYER", color:"blue", words:["Oslo","Bergen","Trondheim","Stavanger"] },
+          { name: "ROVDYR I NORDEN", color:"purple", words:["Ulv","Bjørn","Rev","Gaupe"] }
+        ] },
+      { id: "demo-2",
+        groups: [
+          { name: "MUSIKKINSTRUMENTER", color:"yellow", words:["Gitar","Piano","Fiolin","Tromme"] },
+          { name: "PROGRAMMERINGSSPRÅK", color:"green", words:["Python","Java","Rust","Go"] },
+          { name: "VÆRSTYPER", color:"blue", words:["Sol","Regn","Snø","Tåke"] },
+          { name: "KROPPSDELER", color:"purple", words:["Hånd","Fot","Hode","Rygg"] }
+        ] },
+      { id: "demo-3",
+        groups: [
+          { name: "FARGER", color:"yellow", words:["Rød","Blå","Grønn","Gul"] },
+          { name: "NETTVERKSPROTOKOLLER", color:"green", words:["TCP","UDP","HTTP","DNS"] },
+          { name: "ROM I HUS", color:"blue", words:["Kjøkken","Bad","Stue","Soverom"] },
+          { name: "TRANSPORTMIDLER", color:"purple", words:["Bil","Tog","Båt","Fly"] }
+        ] },
+      { id: "demo-4",
+        groups: [
+          { name: "KAFFEDRIKKER", color:"yellow", words:["Espresso","Cortado","Latte","Americano"] },
+          { name: "OPERATIVSYSTEMER", color:"green", words:["Windows","Linux","macOS","Android"] },
+          { name: "FUGLER", color:"blue", words:["Spurv","Kråke","Ugle","Due"] },
+          { name: "VERKTØY", color:"purple", words:["Hammer","Skrutrekker","Tang","Sag"] }
+        ] },
+      { id: "demo-5",
+        groups: [
+          { name: "PLANETER", color:"yellow", words:["Merkur","Venus","Jorden","Mars"] },
+          { name: "SKYBEGREPER", color:"green", words:["IaaS","PaaS","SaaS","FaaS"] },
+          { name: "NORSKE ELVER", color:"blue", words:["Glomma","Lågen","Nidelva","Numedalslågen"] },
+          { name: "VINTERSPORT", color:"purple", words:["Langrenn","Hopp","Kombinert","Skiskyting"] }
+        ] },
+      { id: "demo-6",
+        groups: [
+          { name: "KRYDDER", color:"yellow", words:["Salt","Pepper","Paprika","Kanel"] },
+          { name: "SIKKERHET", color:"green", words:["Brannmur","Antivirus","Backup","MFA"] },
+          { name: "EUROPEISKE HOVEDSTEDER", color:"blue", words:["Oslo","Stockholm","København","Helsinki"] },
+          { name: "VERKTØYMASKINER", color:"purple", words:["Dreiebenk","Fres","Boremaskin","Plansliper"] }
+        ] },
+      { id: "demo-7",
+        groups: [
+          { name: "KLESPLAGG", color:"yellow", words:["Jakke","Bukse","Skjorte","Genser"] },
+          { name: "FILFORMAT", color:"green", words:["PDF","DOCX","XLSX","PNG"] },
+          { name: "HUSDYR", color:"blue", words:["Ku","Sau","Geit","Hest"] },
+          { name: "MÅLEENHETER", color:"purple", words:["Meter","Liter","Kilo","Ampere"] }
+        ] },
+      { id: "demo-8",
+        groups: [
+          { name: "SOMMERAKTIVITETER", color:"yellow", words:["Bading","Grilling","Camping","Seiling"] },
+          { name: "NETTVERKSENHETER", color:"green", words:["Ruter","Svitsj","AP","Modem"] },
+          { name: "TRESLAG", color:"blue", words:["Furu","Gran","Bjørk","Eik"] },
+          { name: "KJØKKENREDSKAPER", color:"purple", words:["Kjele","Panne","Rivjern","Sil"] }
+        ] },
+      { id: "demo-9",
+        groups: [
+          { name: "SJAKKBRIKKER", color:"yellow", words:["Konge","Dronning","Tårn","Løper"] },
+          { name: "LAGRINGSMEDIER", color:"green", words:["SSD","HDD","USB","SD-kort"] },
+          { name: "HAV", color:"blue", words:["Atlanterhavet","Stillehavet","Indiahavet","Nordishavet"] },
+          { name: "KRYSSORDORD", color:"purple", words:["Åre","Ene","Ode","Ert"] }
+        ] },
+      { id: "demo-10",
+        groups: [
+          { name: "NORSKE ØYER", color:"yellow", words:["Hinnøya","Svalbard","Senja","Karmøy"] },
+          { name: "LINUX-KOMMANDOER", color:"green", words:["ls","cd","grep","chmod"] },
+          { name: "KUNSTFORMER", color:"blue", words:["Maleriet","Skulptur","Foto","Grafikk"] },
+          { name: "TIDSSONER", color:"purple", words:["CET","UTC","EET","GMT"] }
+        ] },
+      { id: "demo-11",
+        groups: [
+          { name: "BAKERIPRODUKTER", color:"yellow", words:["Brød","Bolle","Rundstykke","Knekkebrød"] },
+          { name: "FEILSØKING", color:"green", words:["Logg","Ping","Traceroute","Event Viewer"] },
+          { name: "VILTBÆR", color:"blue", words:["Blåbær","Tyttebær","Multer","Bringebær"] },
+          { name: "FISK", color:"purple", words:["Torsk","Laks","Hyse","Sei"] }
+        ] },
+      { id: "demo-12",
+        groups: [
+          { name: "MÅNEDER", color:"yellow", words:["April","Mai","Juni","Juli"] },
+          { name: "CI/CD-VERKTØY", color:"green", words:["GitHub Actions","GitLab CI","Jenkins","Azure Pipelines"] },
+          { name: "NORSKE FJELL", color:"blue", words:["Galdhøpiggen","Glittertind","Snøhetta","Gaustatoppen"] },
+          { name: "STIKKONTAKTER", color:"purple", words:["Type C","Type F","Type G","Type E"] }
+        ] },
+      { id: "demo-13",
+        groups: [
+          { name: "PÆREDESSERTER", color:"yellow", words:["Pærepai","Pærekompott","Pæreis","Pærekake"] },
+          { name: "KRYPTOTEKNOLOGI", color:"green", words:["RSA","AES","SHA-256","ECC"] },
+          { name: "HAGEVERKTØY", color:"blue", words:["Rake","Spade","Hakke","Gressklipper"] },
+          { name: "NORSKE KONGER", color:"purple", words:["Harald","Olav","Haakon","Magnus"] }
+        ] },
+      { id: "demo-14",
+        groups: [
+          { name: "SOPPTYER", color:"yellow", words:["Kantarell","Steinsopp","Sjampinjong","Fåresopp"] },
+          { name: "HTTP-METODER", color:"green", words:["GET","POST","PUT","DELETE"] },
+          { name: "VERDENSDELER", color:"blue", words:["Europa","Asia","Afrika","Oseania"] },
+          { name: "MÅTER Å KOKE KAFFE", color:"purple", words:["Kokekaffe","Presskanne","Filter","AeroPress"] }
+        ] },
+      { id: "demo-15",
+        groups: [
+          { name: "BILMERKER", color:"yellow", words:["Volvo","Toyota","Volkswagen","Ford"] },
+          { name: "DATABASER", color:"green", words:["PostgreSQL","MySQL","SQLite","MongoDB"] },
+          { name: "SYLTETØY", color:"blue", words:["Jordbær","Aprikos","Plomme","Solbær"] },
+          { name: "TRESORTER I VERKTØY", color:"purple", words:["Bøk","Ask","Lønn","Valnøtt"] }
+        ] },
+      { id: "demo-16",
+        groups: [
+          { name: "BRETTSPILL", color:"yellow", words:["Monopol","Ludo","Risk","Scrabble"] },
+          { name: "KONTEINERTEKNOLOGI", color:"green", words:["Docker","Podman","Kubernetes","Helm"] },
+          { name: "NORSKE DIALEKTER", color:"blue", words:["Trøndersk","Nordnorsk","Vestlandsk","Østnorsk"] },
+          { name: "VÆRSTASJONSENHETER", color:"purple", words:["Termometer","Barometer","Hygrometer","Vindmåler"] }
+        ] }
+    ];
+
+    /* ========== HJELPERE ========== */
+    function ymd(d = new Date()){
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2,'0');
+      const day = String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${day}`;
+    }
+    function mulberry32(a){return function(){var t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return ((t^t>>>14)>>>0)/4294967296;}}
+    function seededShuffle(arr, seedStr){
+      const seed = Array.from(seedStr).reduce((a,c)=>a+c.charCodeAt(0), 0) || 1;
+      const rnd = mulberry32(seed);
+      const a = arr.slice();
+      for(let i=a.length-1;i>0;i--){
+        const j = Math.floor(rnd()*(i+1));
+        [a[i],a[j]]=[a[j],a[i]];
+      }
+      return a;
+    }
+    function deepCopy(o){return JSON.parse(JSON.stringify(o));}
+    function dayIndex(){
+      const base = new Date('2024-01-01T00:00:00');
+      const now  = new Date();
+      const diff = Math.floor((now - base) / 86400000);
+      return diff >= 0 ? diff : 0;
+    }
+
+    /* ========== DOM ========== */
+    const gridEl   = document.getElementById('grid');
+    const msgEl    = document.getElementById('msg');
+    const solvedEl = document.getElementById('solved');
+    const dateEl   = document.getElementById('dateLabel');
+
+    const btnShuffle = document.getElementById('btnShuffle');
+    const btnClear   = document.getElementById('btnClear');
+    const btnSubmit  = document.getElementById('btnSubmit');
+    const btnRestart = document.getElementById('btnRestart');
+    const btnRandom  = document.getElementById('btnRandom');
+    const btnShare   = document.getElementById('btnShare');
+    const shareBox   = document.getElementById('shareBox');
+    const shareStatus= document.getElementById('shareStatus');
+    const btnCopyAgain = document.getElementById('btnCopyAgain');
+
+    const btnLoadCustom = document.getElementById('btnLoadCustom');
+    const btnExample = document.getElementById('btnExample');
+    const customJson = document.getElementById('customJson');
+
+    const dots = Array.from(document.querySelectorAll('.dot'));
+
+    /* ========== STATE ========== */
+    let ALL_WORDS = [];            // [{id,text,group}]
+    let remainingTiles = [];
+    let selection = new Set();
+    let mistakesLeft = 4;
+    let solvedGroups = [];         // [{name,color,words}]
+    let solvedOrderColors = [];    // for deling
+    let mode = "daily";            // 'daily' | 'random' | 'custom'
+    let currentPuzzle = null;
+    let todayKey = ymd();
+    let stableSeed = todayKey;
+    let storageKey = "";
+
+    /* ========== INIT ========== */
+    init();
+    function init(){
+      loadDaily();
+      wireEvents();
+      renderAll();
+    }
+
+    /* ========== LOADING ========== */
+    function loadDaily(){
+      mode = "daily";
+      const index = dayIndex() % PUZZLES.length;
+      currentPuzzle = deepCopy(PUZZLES[index]);
+      stableSeed = todayKey;
+      storageKey = `koblinger-state-${STATE_VERSION}-${todayKey}`;
+      dateEl.textContent = `Dagens: ${todayKey}`;
+      restoreOrSetup();
+    }
+    function loadRandom(){
+      mode = "random";
+      const r = Math.floor(Math.random()*PUZZLES.length);
+      currentPuzzle = deepCopy(PUZZLES[r]);
+      stableSeed = `${Date.now()}-${Math.random()}`;
+      storageKey = ""; dateEl.textContent = `Tilfeldig`;
+      freshSetup();
+    }
+    function loadCustom(json){
+      mode = "custom";
+      try{
+        const obj = JSON.parse(json);
+        validatePuzzle(obj);
+        currentPuzzle = obj;
+        stableSeed = `${Date.now()}-${Math.random()}`;
+        storageKey = ""; dateEl.textContent = obj.id ? `Egendefinert: ${obj.id}` : `Egendefinert`;
+        freshSetup();
+      }catch(e){
+        showMsg(`Kunne ikke laste puslespillet: ${e.message}`, 'err');
+      }
+    }
+    function validatePuzzle(p){
+      if(!p || !p.groups || p.groups.length!==4) throw new Error("Må ha 4 grupper");
+      const words = [];
+      const colors = new Set();
+      p.groups.forEach(g=>{
+        if(!g.name || !g.words || g.words.length!==4) throw new Error("Hver gruppe må ha navn og 4 ord");
+        if(!['yellow','green','blue','purple'].includes(g.color)) throw new Error("Farger må være: yellow, green, blue, purple");
+        colors.add(g.color);
+        g.words.forEach(w=>{
+          if(typeof w!=='string' || !w.trim()) throw new Error("Ord må være tekst");
+          words.push(w);
+        });
+      });
+      if(words.length!==16) throw new Error("Totalt må det være 16 ord");
+      if(new Set(words.map(w=>w.toLowerCase())).size!==16) throw new Error("Ord må være unike innen puslespillet");
+      if(colors.size!==4) throw new Error("Hver farge skal brukes akkurat én gang");
+    }
+
+    function freshSetup(){
+      solvedGroups = [];
+      solvedOrderColors = [];
+      mistakesLeft = 4;
+      selection.clear();
+      ALL_WORDS = [];
+
+      currentPuzzle.groups.forEach((g,gi)=>{
+        g.words.forEach((w, i)=>{
+          const id = `${gi}-${i}-${w}`;
+          ALL_WORDS.push({ id, text:w, group:gi });
+        });
+      });
+
+      remainingTiles = (mode==='daily')
+        ? seededShuffle(ALL_WORDS, stableSeed)
+        : ALL_WORDS.slice().sort(()=>Math.random()-0.5);
+
+      saveState();
+      updateControls();
+    }
+
+    function restoreOrSetup(){
+      try{
+        const raw = storageKey ? localStorage.getItem(storageKey) : null;
+        if(!raw){ freshSetup(); return; }
+        const st = JSON.parse(raw);
+        if(!st || st.version !== STATE_VERSION){ freshSetup(); return; }
+
+        currentPuzzle = st.puzzle || currentPuzzle;
+        mistakesLeft = st.mistakesLeft ?? 4;
+        solvedGroups = Array.isArray(st.solvedGroups) ? st.solvedGroups : [];
+        solvedOrderColors = Array.isArray(st.solvedOrderColors) ? st.solvedOrderColors : [];
+
+        ALL_WORDS = [];
+        currentPuzzle.groups.forEach((g,gi)=>{
+          g.words.forEach((w,i)=>{
+            const id = `${gi}-${i}-${w}`;
+            ALL_WORDS.push({ id, text:w, group:gi });
+          });
+        });
+
+        const okIds = new Set(ALL_WORDS.map(t=>t.id));
+        remainingTiles = (st.remainingTiles || ALL_WORDS).filter(t=>t && okIds.has(t.id));
+        if(remainingTiles.length === 0 && solvedGroups.length < 4){
+          freshSetup();
+        }
+        applyEndStateIfNeeded();
+        updateControls();
+      }catch(e){
+        console.warn("Gjenoppretting feilet, starter på nytt", e);
+        freshSetup();
+      }
+    }
+
+    function saveState(){
+      if(!storageKey) return;
+      try{
+        const st = {
+          version: STATE_VERSION,
+          puzzle: currentPuzzle,
+          mistakesLeft,
+          solvedGroups,
+          solvedOrderColors,
+          remainingTiles
+        };
+        localStorage.setItem(storageKey, JSON.stringify(st));
+      }catch(e){ console.warn("Lagring feilet", e); }
+    }
+
+    /* ========== RENDER ========== */
+    function renderAll(){
+      renderDots();
+      renderGrid();
+      renderSolved();
+      updateControls();
+      msgEl.textContent = "";
+      applyEndStateIfNeeded();
+    }
+    function renderDots(){ dots.forEach((d,i)=> d.classList.toggle('live', i < mistakesLeft)); }
+    function renderGrid(){
+      gridEl.innerHTML = "";
+      remainingTiles.forEach(t=>{
+        const btn = document.createElement('button');
+        btn.className = 'tile';
+        btn.type='button';
+        btn.textContent = t.text;
+        btn.setAttribute('data-id', t.id);
+        btn.setAttribute('aria-pressed', selection.has(t.id) ? 'true' : 'false');
+        btn.addEventListener('click', ()=> toggleSelect(t.id), {passive:true});
+        if(selection.has(t.id)) btn.classList.add('selected');
+        gridEl.appendChild(btn);
+      });
+      if(remainingTiles.length===0){
+        gridEl.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:12px; color:var(--muted)">Ingen ruter igjen</div>';
+      }
+    }
+    function renderSolved(){
+      solvedEl.innerHTML = "";
+      solvedGroups.forEach(g=>{
+        const card = document.createElement('div');
+        card.className = 'group-card';
+        const head = document.createElement('div');
+        head.className = 'group-head';
+        head.innerHTML = `<div>${g.name}</div><span class="chip ${g.color}">${g.color.toUpperCase()}</span>`;
+        const list = document.createElement('div');
+        list.className = 'group-words';
+        g.words.forEach(w=>{
+          const e = document.createElement('span');
+          e.className = 'w'; e.textContent = w;
+          list.appendChild(e);
+        });
+        card.appendChild(head); card.appendChild(list);
+        solvedEl.appendChild(card);
+      });
+    }
+    function updateControls(){
+      btnSubmit.disabled = selection.size !== 4;
+      btnShare.disabled = !(isWin() || isLose());
+      renderDots();
+    }
+    function applyEndStateIfNeeded(){
+      const ended = isWin() || isLose();
+      const tiles = gridEl.querySelectorAll('.tile');
+      tiles.forEach(t => t.classList.toggle('disabled', ended));
+      btnSubmit.disabled = ended || selection.size !== 4;
+      btnShuffle.disabled = ended;
+      btnClear.disabled = ended;
+      if(ended) btnShare.disabled = false;
+    }
+
+    function showMsg(text, kind=''){
+      msgEl.textContent = text;
+      msgEl.className = 'msg';
+      if(kind==='ok') msgEl.classList.add('ok');
+      if(kind==='warn') msgEl.classList.add('warn');
+      if(kind==='err') msgEl.classList.add('err');
+    }
+
+    /* ========== LOGIKK ========== */
+    function isWin(){ return solvedGroups.length===4; }
+    function isLose(){ return mistakesLeft<=0 && !isWin(); }
+
+    function toggleSelect(id){
+      if(selection.has(id)){ selection.delete(id); }
+      else{
+        if(selection.size===4) return;
+        selection.add(id);
+      }
+      renderGrid();
+      updateControls();
+    }
+    function clearSelection(){
+      selection.clear();
+      renderGrid();
+      updateControls();
+    }
+
+    function submitSelection(){
+      if(selection.size!==4 && remainingTiles.length>4) return;
+
+      // Auto-løs når 4 ruter gjenstår
+      if(remainingTiles.length===4){
+        const gi = remainingTiles[0].group;
+        handleCorrectGroup(gi, remainingTiles.slice());
+        return;
+      }
+
+      const ids = Array.from(selection);
+      const tiles = ids.map(id => ALL_WORDS.find(t=>t.id===id));
+      const groups = tiles.map(t=>t.group);
+      const counts = {};
+      groups.forEach(g=>counts[g]=(counts[g]||0)+1);
+      const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+      const [topGroup, topCount] = entries[0];
+
+      if(entries.length===1 && topCount===4){
+        const gi = Number(topGroup);
+        handleCorrectGroup(gi, tiles);
+        return;
+      }
+
+      if(topCount===3){
+        mistakesLeft = Math.max(0, mistakesLeft - 1);
+        renderDots();
+        if(mistakesLeft<=0){ endGame(false, "Nære! Du var én unna, men forsøkene er brukt opp."); return; }
+        showMsg("Nære! Du er én unna – tre av fire hører sammen.", 'warn');
+        clearSelection();
+        saveState();
+        return;
+      }
+
+      mistakesLeft = Math.max(0, mistakesLeft - 1);
+      renderDots();
+      if(mistakesLeft<=0){ endGame(false, "Feil kombinasjon. Ingen forsøk igjen."); return; }
+      showMsg("Feil kombinasjon. Prøv igjen.", 'err');
+      clearSelection();
+      saveState();
+    }
+
+    function handleCorrectGroup(gi, tiles){
+      const group = currentPuzzle.groups[gi];
+      const removeIds = new Set(tiles.map(t=>t.id));
+      remainingTiles = remainingTiles.filter(t=>!removeIds.has(t.id));
+      solvedGroups.push({ name: group.name, color: group.color, words: group.words.slice() });
+      solvedOrderColors.push(group.color);
+      showMsg(`Riktig! «${group.name}»`, 'ok');
+      clearSelection();
+      renderGrid();
+      renderSolved();
+      if(isWin()){ endGame(true, "Gratulerer! Du fant alle gruppene."); }
+      saveState();
+    }
+
+    function endGame(win, text){
+      showMsg(text, win ? 'ok' : 'err');
+      applyEndStateIfNeeded();
+      saveState();
+    }
+
+    /* ========== DELING (med iOS fallback) ========== */
+    function colorEmoji(c){ return c==='yellow'?'🟨':c==='green'?'🟩':c==='blue'?'🟦':'🟪'; }
+    function buildShareText(){
+      const date = (mode==='daily') ? todayKey : (mode==='random' ? 'Tilfeldig' : (currentPuzzle.id||'Egendefinert'));
+      const title = `Koblinger (Norsk) — ${date}`;
+      const mistakesUsed = 4 - mistakesLeft;
+      const gridLines = solvedOrderColors.map(c => colorEmoji(c).repeat(4)).join('\n');
+      const status = isWin() ? "LØST" : "STO FAST";
+      const meta = `${status} • Feil brukt: ${mistakesUsed}/4`;
+      const url = location.href.split('#')[0];
+      return `${title}\n${meta}\n\n${gridLines}\n\n${url}`;
+    }
+    async function doShare(){
+      const text = buildShareText();
+      const manual = document.getElementById('shareManual');
+      const ta = document.getElementById('shareText');
+      manual.style.display = 'none';
+
+      try{
+        await navigator.clipboard.writeText(text);
+        shareStatus.textContent = "Kopiert til utklippstavlen ✅";
+      }catch(e){
+        // iOS/insecure fallback: vis tekstboks for manuell kopiering
+        ta.value = text;
+        manual.style.display = 'block';
+        shareStatus.textContent = "Kopier manuelt (iOS/uten HTTPS) ⤵️";
+      }
+      shareBox.style.display = 'flex';
+    }
+    function selectAllShare(){
+      const ta = document.getElementById('shareText');
+      ta.focus(); ta.select();
+      try{ document.execCommand('copy'); shareStatus.textContent = "Kopiert ✅"; }catch(e){}
+    }
+
+    /* ========== EVENTS ========== */
+    function wireEvents(){
+      btnSubmit.addEventListener('click', submitSelection, {passive:true});
+      btnClear.addEventListener('click', clearSelection, {passive:true});
+      btnShuffle.addEventListener('click', ()=>{
+        remainingTiles = (mode==='daily')
+          ? seededShuffle(remainingTiles, stableSeed + '-reshuffle-' + Math.random())
+          : remainingTiles.slice().sort(()=>Math.random()-0.5);
+        renderGrid(); showMsg("Blandet rekkefølgen."); saveState();
+      }, {passive:true});
+      btnRestart.addEventListener('click', ()=>{
+        if(mode!=='daily'){ showMsg("«Start på nytt» gjelder kun dagens puslespill."); return; }
+        try{ localStorage.removeItem(storageKey); }catch(e){}
+        restoreOrSetup(); renderAll(); showMsg("Dagens puslespill er tilbakestilt.", 'ok');
+        shareBox.style.display='none';
+      }, {passive:true});
+      btnRandom.addEventListener('click', ()=>{
+        loadRandom(); renderAll(); showMsg("Tilfeldig puslespill lastet.", 'ok');
+        shareBox.style.display='none';
+      }, {passive:true});
+      btnShare.addEventListener('click', doShare, {passive:true});
+      btnCopyAgain.addEventListener('click', doShare, {passive:true});
+      document.getElementById('btnSelectAll').addEventListener('click', selectAllShare, {passive:true});
+
+      btnLoadCustom.addEventListener('click', ()=>{
+        loadCustom(customJson.value); renderAll(); showMsg("Egendefinert puslespill lastet.", 'ok'); shareBox.style.display='none';
+      }, {passive:true});
+      btnExample.addEventListener('click', ()=>{
+        customJson.value = JSON.stringify({
+          id: "mitt-puslespill",
+          groups: [
+            { name: "FRUKTER", color:"yellow", words:["Eple","Pære","Banan","Appelsin"] },
+            { name: "DATATERMER", color:"green", words:["Buffer","Cache","Kø","Stack"] },
+            { name: "NORSKE BYER", color:"blue", words:["Oslo","Bergen","Trondheim","Stavanger"] },
+            { name: "ROVDYR", color:"purple", words:["Ulv","Bjørn","Rev","Gaupe"] }
+          ]
+        }, null, 2);
+      }, {passive:true});
+
+      window.addEventListener('keydown', (e)=>{
+        if(e.key==='Enter' && !btnSubmit.disabled){ submitSelection(); }
+        if(e.key==='Escape'){ clearSelection(); }
+        if(e.key.toLowerCase()==='b'){ btnShuffle.click(); }
+      });
+    }
+  </script>
+</body>
+</html>
