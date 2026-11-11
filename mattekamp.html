@@ -116,6 +116,24 @@
   .overlay .stats{color:var(--muted); font-size:min(2.6vh,17px); line-height:1.6}
   .overlay .stats b{color:var(--text)}
 
+  /* Øre-knapp og buzzer-modus */
+  .half:not(.active) .ear{display:none}
+  .buzzer{
+    display:none; width:min(20vh,36vw); height:min(20vh,36vw); border-radius:50%; margin-top:4px;
+    background:radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--pc) 70%, white), var(--pc) 60%, color-mix(in srgb, var(--pc) 60%, black));
+    border:4px solid color-mix(in srgb, var(--pc) 50%, black); color:#0b0d18; font-size:min(4vh,22px); font-weight:900;
+    box-shadow:0 8px 0 color-mix(in srgb, var(--pc) 45%, black), 0 12px 24px rgba(0,0,0,.4);
+  }
+  .buzzer:active{transform:translateY(6px); box-shadow:0 2px 0 color-mix(in srgb, var(--pc) 45%, black)}
+  .buzzer:disabled{filter:grayscale(1) brightness(.5); transform:none}
+  #game.buzz .buzzer{display:block}
+  #game.buzz.answering .buzzer{display:none}
+  #game.buzz .skip{display:none}
+  #game.buzz:not(.answering) .approve{display:none}
+  #game.buzz .half:not(.active) .problem{font-size:min(10vh,20vw,calc(140vw / var(--len,5))); color:var(--text)}
+  #game.buzz .half.out{opacity:.55}
+  .clock.hurry{color:var(--bad)}
+
   #pause{position:fixed; inset:0; background:rgba(5,6,12,.85); display:flex; align-items:center; justify-content:center; gap:12px; z-index:10}
   #pause button{font-size:20px; min-height:60px; padding:10px 24px}
 </style>
@@ -126,26 +144,34 @@
 <div id="setup">
   <div class="card">
     <h1>🧮 Mattekamp</h1>
-    <p class="lead">To spillere. Legg telefonen flatt mellom dere. Oppgavene kommer opp på hver sin side, én om gangen. <b>Si svaret høyt</b>, så går turen automatisk videre når svaret er riktig. Den som bruker kortest tid totalt, vinner.</p>
+    <p class="lead">To spillere. Legg telefonen flatt mellom dere og <b>si svaret høyt</b>. Du kan rette deg selv underveis: «25 … nei, 26!» godtas hvis 26 er riktig.</p>
+
+    <div class="row" style="margin-top:0">
+      <label>Spillmodus</label>
+      <div class="seg" id="gameSeg">
+        <button data-v="turn" class="on">🔁 Annenhver tur</button><button data-v="buzz">🔔 Buzzer</button>
+      </div>
+      <p class="note" id="gameInfo" style="margin-top:4px"></p>
+    </div>
 
     <div class="players">
       <div class="pbox p1">
         <label for="n1">Spiller 1 (denne siden)</label>
         <input id="n1" value="Spiller 1" maxlength="14" />
-        <label for="g1">Nivå</label>
+        <label for="g1" id="g1lbl">Nivå</label>
         <select id="g1"></select>
       </div>
       <div class="pbox p2">
         <label for="n2">Spiller 2 (motsatt side)</label>
         <input id="n2" value="Spiller 2" maxlength="14" />
-        <label for="g2">Nivå</label>
-        <select id="g2"></select>
+        <label for="g2" class="g2row">Nivå</label>
+        <select id="g2" class="g2row"></select>
       </div>
     </div>
     <p class="note" id="gradeInfo"></p>
 
     <div class="row">
-      <label>Oppgaver per spiller</label>
+      <label id="countLbl">Oppgaver per spiller</label>
       <div class="seg" id="countSeg">
         <button data-v="5">5</button><button data-v="10" class="on">10</button><button data-v="15">15</button><button data-v="20">20</button>
       </div>
@@ -158,7 +184,7 @@
       </div>
     </div>
 
-    <div class="row">
+    <div class="row" id="ansRow">
       <label>Fasit for den som venter</label>
       <div class="seg" id="ansSeg">
         <button data-v="hide" class="on">🙈 Skjul fasit</button><button data-v="show">👀 Vis fasit</button>
@@ -170,7 +196,7 @@
     <button id="startBtn" class="primary">Start!</button>
 
     <p class="note">
-      Tips: Lås skjermrotasjonen på telefonen. Feil svar gir ingen straff, men klokka går. «Hopp over» gir +5 sekunder.
+      Tips: Lås skjermrotasjonen på telefonen. Trykk «👂 Hør på nytt» hvis mikrofonen har fått med seg surreprat.
       Hvis mikrofonen ikke oppfatter et riktig svar, kan motstanderen trykke «✓ Godkjenn».
       Talegjenkjenning fungerer best i Chrome (Android) og Safari (iPhone), og siden må åpnes via https.
     </p>
@@ -527,11 +553,13 @@ function halfTemplate() {
       <div class="problem"></div>
       <div class="heard"></div>
       <div class="typed hidden"></div>
+      <button class="buzzer">BUZZ!</button>
     </div>
     <div class="keypad hidden">
       ${[7, 8, 9, '⌫', 4, 5, 6, '−', 1, 2, 3, 0].map(k => `<button data-k="${k}">${k}</button>`).join('')}
     </div>
     <div class="actions">
+      <button class="ear">👂 Hør på nytt</button>
       <button class="skip">⏭ Hopp over (+5 s)</button>
       <button class="approve">✓ Godkjenn motstanderens svar</button>
     </div>
@@ -540,6 +568,8 @@ function halfTemplate() {
 halves.forEach((h, i) => {
   h.innerHTML = halfTemplate();
   h.querySelector('.skip').onclick = () => skip(i);
+  h.querySelector('.ear').onclick = () => listenAgain(i);
+  h.querySelector('.buzzer').addEventListener('pointerdown', e => { e.preventDefault(); buzz(i); });
   h.querySelector('.approve').onclick = () => { if (G.turn !== i && G.awaiting) correct(G.turn, 'godkjent av motstander'); };
   h.querySelectorAll('.keypad button').forEach(b => b.onclick = () => keyPress(i, b.dataset.k));
 });
@@ -550,6 +580,7 @@ function showHeard(i, text, cls) {
 }
 
 function render() {
+  if (G.game === 'buzz') return renderBuzz();
   G.players.forEach((p, i) => {
     const h = halves[i], active = G.turn === i && G.running;
     h.classList.toggle('active', active);
@@ -561,6 +592,7 @@ function render() {
     const keys = G.mode === 'keys';
     q(i, '.keypad').classList.toggle('hidden', !keys);
     q(i, '.typed').classList.toggle('hidden', !keys || !active);
+    q(i, '.ear').classList.toggle('hidden', keys);
     if (p.done >= G.count) {
       st.textContent = 'Ferdig! 🎉'; prob.textContent = ''; showHeard(i, '', '');
     } else if (active) {
@@ -585,16 +617,20 @@ function startGame() {
   G.count = +$('#countSeg .on').dataset.v;
   G.mode = $('#modeSeg .on').dataset.v;
   G.showAns = $('#ansSeg .on').dataset.v === 'show';
+  G.game = $('#gameSeg .on').dataset.v;
   if ((!SR || IN_ARTIFACT) && !Dict && !NATIVE) G.mode = 'keys';
   G.players = [0, 1].map(i => ({
     name: ($('#n' + (i + 1)).value.trim() || `Spiller ${i + 1}`),
-    grade: +$('#g' + (i + 1)).value,
-    done: 0, correct: 0, skipped: 0, wrong: 0, time: 0, log: [], cur: null, typed: '',
+    grade: +$('#g' + (G.game === 'buzz' ? 1 : i + 1)).value,
+    done: 0, correct: 0, skipped: 0, wrong: 0, time: 0, log: [], cur: null, typed: '', points: 0, penalties: 0,
   }));
   G.players.forEach(p => p.cur = makeProblem(p.grade));
   G.turn = G.starter; G.running = true; G.paused = false; G.awaiting = false;
-  try { localStorage.setItem('mattekamp', JSON.stringify({ n1: $('#n1').value, n2: $('#n2').value, g1: $('#g1').value, g2: $('#g2').value, c: G.count, m: G.mode, f: G.showAns ? 'show' : 'hide' })); } catch (e) {}
+  try { localStorage.setItem('mattekamp', JSON.stringify({ n1: $('#n1').value, n2: $('#n2').value, g1: $('#g1').value, g2: $('#g2').value, c: G.count, m: G.mode, f: G.showAns ? 'show' : 'hide', gm: G.game })); } catch (e) {}
 
+  G.qIndex = 0; G.buzzer = -1; G.out = [false, false]; G.between = false;
+  $('#game').classList.toggle('buzz', G.game === 'buzz');
+  $('#game').classList.remove('answering');
   $('#setup').classList.add('hidden'); $('#game').classList.remove('hidden');
   halves.forEach(h => h.querySelector('.overlay').classList.add('hidden'));
   goFullscreen();
@@ -609,11 +645,11 @@ function countdown(n) {
   halves.forEach((h, i) => {
     const o = h.querySelector('.overlay');
     o.classList.remove('hidden');
-    const first = G.players[G.turn].name;
-    o.innerHTML = `<div class="big">${n || 'Kjør!'}</div><div class="stats">${first} starter</div>`;
+    const sub = G.game === 'buzz' ? 'Fingeren klar på buzzeren!' : `${esc(G.players[G.turn].name)} starter`;
+    o.innerHTML = `<div class="big">${n || 'Kjør!'}</div><div class="stats">${sub}</div>`;
   });
   if (n > 0) { beep([440], .1); setTimeout(() => G.running && countdown(n - 1), 800); }
-  else { beep([880], .2); setTimeout(() => { halves.forEach(h => h.querySelector('.overlay').classList.add('hidden')); beginTurn(); }, 450); }
+  else { beep([880], .2); setTimeout(() => { halves.forEach(h => h.querySelector('.overlay').classList.add('hidden')); G.game === 'buzz' ? beginQuestion() : beginTurn(); }, 450); }
 }
 
 function beginTurn() {
@@ -640,6 +676,7 @@ function finishTurn(i, outcome, penalty = 0) {
 
 function correct(i, heard) {
   if (!G.awaiting || G.turn !== i) return;
+  if (G.game === 'buzz') return buzzCorrect(i);
   const ans = G.players[i].cur.a;
   G.ignoreFinalUntil = performance.now() + 1200;
   clearTimeout(G.silence);
@@ -695,6 +732,7 @@ function keyPress(i, k) {
 }
 
 function finish() {
+  if (G.game === 'buzz') return finishBuzz();
   G.running = false; G.awaiting = false;
   clearInterval(G.timer);
   Voice.stop(); keepAwake(false);
@@ -725,6 +763,7 @@ function finish() {
 
 function toMenu() {
   G.running = false; G.awaiting = false; G.paused = false;
+  clearTimeout(G.qTimer); clearTimeout(G.buzzTimer); clearTimeout(G.silence);
   clearInterval(G.timer); Voice.stop(); keepAwake(false);
   $('#pause').classList.add('hidden');
   $('#game').classList.add('hidden'); $('#setup').classList.remove('hidden');
@@ -733,12 +772,172 @@ function toMenu() {
 
 function pause(on) {
   if (!G.running) return;
-  if (on && !G.paused) { G.paused = true; G.pausedAt = performance.now(); Voice.stop(); $('#pause').classList.remove('hidden'); }
-  else if (!on && G.paused) {
+  if (on && !G.paused) {
+    G.paused = true; G.pausedAt = performance.now(); Voice.stop(); $('#pause').classList.remove('hidden');
+    if (G.game === 'buzz') { clearTimeout(G.buzzTimer); clearTimeout(G.qTimer); clearTimeout(G.silence); }
+  } else if (!on && G.paused) {
     G.paused = false; G.turnStart += performance.now() - G.pausedAt;
     $('#pause').classList.add('hidden');
     if (G.mode === 'voice') Voice.start();
+    if (G.game === 'buzz' && !G.between) {
+      if (G.buzzer >= 0) startAnswerWindow(G.buzzer);   // ny full svartid etter pause
+      else armQuestionTimer();
+    }
   }
+}
+
+/* ---------- Øre: lytt på nytt (fjerner surreprat) ---------- */
+function listenAgain(i) {
+  if (!G.awaiting || G.turn !== i || G.paused) return;
+  clearTimeout(G.silence);
+  showHeard(i, '👂 Lytter på nytt …', '');
+  if (NATIVE) NATIVE.postMessage('reset');
+  else if (Dict) { Dict.stop().catch(() => {}); dictStart(); }
+  else if (Voice.rec) { try { Voice.rec.abort(); } catch (e) {} }   // starter av seg selv igjen
+}
+
+/* =========================================================
+   Buzzer-modus: samme stykke til begge, først til buzzeren
+   ========================================================= */
+const BUZZ_SECONDS = 3;
+const BUZZ_GRACE = 700;      // talegjenkjenningen trenger litt tid etter at du har sagt svaret
+const QUESTION_TIMEOUT = 20000;
+
+function beginQuestion() {
+  if (!G.running) return;
+  if (G.qIndex >= G.count) return finish();
+  G.qIndex++;
+  const prev = G.players[0].cur && G.players[0].cur.q;
+  const prob = makeProblem(G.players[0].grade, prev);
+  G.players.forEach(p => { p.cur = prob; p.typed = ''; });
+  G.out = [false, false]; G.buzzer = -1; G.awaiting = false; G.between = false;
+  clearTimeout(G.silence);
+  if (NATIVE) NATIVE.postMessage('reset');
+  halves.forEach((h, i) => { showHeard(i, '', ''); q(i, '.typed').textContent = ''; });
+  G.qStart = performance.now(); G.qLeft = QUESTION_TIMEOUT;
+  armQuestionTimer();
+  renderBuzz();
+}
+function armQuestionTimer() {
+  clearTimeout(G.qTimer);
+  G.qTimer = setTimeout(() => endQuestion(-1, 'Ingen svarte.'), G.qLeft || QUESTION_TIMEOUT);
+  G.qArmedAt = performance.now();
+}
+function buzz(i) {
+  if (!G.running || G.paused || G.between || G.buzzer >= 0 || G.out[i] || G.qIndex === 0) return;
+  G.qLeft = Math.max(5000, (G.qLeft || QUESTION_TIMEOUT) - (performance.now() - G.qArmedAt));
+  clearTimeout(G.qTimer);
+  G.buzzer = i; G.turn = i;
+  G.players[i].typed = ''; q(i, '.typed').textContent = '';
+  if (NATIVE) NATIVE.postMessage('reset');           // bare det som sies etter buzzet teller
+  beep([523, 784], .1);
+  showHeard(i, '', ''); showHeard(1 - i, '', '');
+  startAnswerWindow(i);
+}
+function startAnswerWindow(i) {
+  clearTimeout(G.buzzTimer); clearInterval(G.timer); clearTimeout(G.silence);
+  G.awaiting = true;
+  G.buzzAt = performance.now();
+  G.buzzTimer = setTimeout(() => buzzFail(i), BUZZ_SECONDS * 1000 + BUZZ_GRACE);
+  G.timer = setInterval(() => {
+    const left = Math.max(0, BUZZ_SECONDS - (performance.now() - G.buzzAt) / 1000);
+    const c = q(i, '.clock'); c.textContent = left.toFixed(1).replace('.', ',') + ' s'; c.classList.toggle('hurry', left < 1.01);
+  }, 50);
+  renderBuzz();
+}
+function stopAnswerWindow() {
+  clearTimeout(G.buzzTimer); clearInterval(G.timer); clearTimeout(G.silence);
+  G.awaiting = false;
+  halves.forEach((h, k) => q(k, '.clock').classList.remove('hurry'));
+}
+function buzzCorrect(i) {
+  if (G.buzzer !== i) return;
+  stopAnswerWindow();
+  G.ignoreFinalUntil = performance.now() + 1200;
+  const p = G.players[i];
+  p.points++; p.correct++; p.log.push('ok');
+  beep([660, 990]);
+  halves[i].classList.add('flash-good');
+  endQuestion(i, '');
+}
+function buzzFail(i) {
+  if (G.buzzer !== i || !G.running) return;
+  stopAnswerWindow();
+  const p = G.players[i];
+  p.points--; p.penalties++;
+  G.out[i] = true; G.buzzer = -1;
+  if (NATIVE) NATIVE.postMessage('reset');
+  beep([200, 150], .18);
+  const h = halves[i]; h.classList.remove('flash-bad'); void h.offsetWidth; h.classList.add('flash-bad');
+  if (G.out[0] && G.out[1]) return endQuestion(-1, 'Ingen av dere klarte det.');
+  armQuestionTimer();
+  renderBuzz();
+  showHeard(i, 'For sent! −1 poeng', 'bad');
+  showHeard(1 - i, `${G.players[i].name} bommet – din sjanse!`, 'good');
+}
+function endQuestion(winner, msg) {
+  clearTimeout(G.qTimer); stopAnswerWindow();
+  G.between = true; G.buzzer = -1;
+  const ans = fmt(G.players[0].cur.a);
+  renderBuzz();
+  halves.forEach((h, k) => {
+    if (winner === k) showHeard(k, `✓ ${ans} er riktig! +1 poeng`, 'good');
+    else if (winner >= 0) showHeard(k, `${G.players[winner].name} svarte riktig: ${ans}`, '');
+    else showHeard(k, `${msg} Svaret var ${ans}.`, 'bad');
+  });
+  setTimeout(() => { halves.forEach(h => h.classList.remove('flash-good')); beginQuestion(); }, winner >= 0 ? 1400 : 2200);
+}
+function renderBuzz() {
+  const answering = G.buzzer >= 0;
+  $('#game').classList.toggle('answering', answering);
+  const keys = G.mode === 'keys';
+  G.players.forEach((p, i) => {
+    const h = halves[i], active = G.buzzer === i && G.running;
+    h.classList.toggle('active', active);
+    h.classList.toggle('out', !!G.out[i] && !G.between);
+    q(i, '.name').textContent = p.name;
+    q(i, '.prog').innerHTML = `<span class="pts">${p.points} poeng</span>&nbsp;·&nbsp;<span>${Math.max(1, G.qIndex)}/${G.count}</span>`;
+    if (!active) { q(i, '.clock').textContent = ''; q(i, '.clock').classList.remove('hurry'); }
+    q(i, '.keypad').classList.toggle('hidden', !keys);
+    q(i, '.typed').classList.toggle('hidden', !keys || !active);
+    q(i, '.ear').classList.toggle('hidden', keys);
+    const st = q(i, '.status');
+    if (!G.running) st.textContent = '';
+    else if (G.between) st.textContent = '';
+    else if (active) st.textContent = keys ? 'Tast svaret – fort!' : 'Si svaret – nå! 🎤';
+    else if (answering) st.textContent = `${G.players[G.buzzer].name} svarer …`;
+    else if (G.out[i]) st.textContent = 'Du er ute denne runden';
+    else st.textContent = 'Trykk buzzeren når du kan svaret!';
+    if (p.cur) setProblem(q(i, '.problem'), p.cur);
+    q(i, '.buzzer').disabled = !G.running || G.between || answering || !!G.out[i];
+  });
+}
+function finishBuzz() {
+  G.running = false; G.awaiting = false;
+  clearTimeout(G.qTimer); stopAnswerWindow();
+  Voice.stop(); keepAwake(false);
+  $('#game').classList.remove('answering');
+  const [a, b] = G.players;
+  const winner = a.points === b.points ? -1 : (a.points > b.points ? 0 : 1);
+  beep([523, 659, 784, 1047], .15);
+  halves.forEach((h, i) => {
+    const me = G.players[i], o = h.querySelector('.overlay');
+    const title = winner === -1 ? 'Uavgjort! 🤝' : winner === i ? 'Du vant! 🏆' : `${esc(G.players[winner].name)} vant`;
+    o.innerHTML = `
+      <h2>${title}</h2>
+      <div class="stats">${esc(a.name)} <b>${a.points}</b> – <b>${b.points}</b> ${esc(b.name)}</div>
+      <div class="stats">
+        Dine poeng: <b>${me.points}</b><br>
+        Riktige: <b>${me.correct}</b> · For sent: <b>${me.penalties}</b> · Feil forsøk: <b>${me.wrong}</b><br>
+        Nivå: ${GRADES[me.grade].name}
+      </div>
+      <div style="display:flex;gap:10px;margin-top:6px">
+        <button class="primary again">↻ Spill igjen</button><button class="menu">Meny</button>
+      </div>`;
+    o.classList.remove('hidden');
+    o.querySelector('.again').onclick = startGame;
+    o.querySelector('.menu').onclick = toMenu;
+  });
 }
 
 function micDenied() {
@@ -775,17 +974,30 @@ function gradeInfo() {
 document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  setupUI();
 }));
+function setupUI() {
+  const buzzMode = $('#gameSeg .on').dataset.v === 'buzz';
+  document.querySelectorAll('.g2row').forEach(el => el.classList.toggle('hidden', buzzMode));
+  $('#g1lbl').textContent = buzzMode ? 'Nivå (felles for begge)' : 'Nivå';
+  $('#countLbl').textContent = buzzMode ? 'Antall spørsmål' : 'Oppgaver per spiller';
+  $('#ansRow').classList.toggle('hidden', buzzMode);
+  $('#gameInfo').textContent = buzzMode
+    ? `Begge får samme stykke. Trykk på buzzeren din først, så har du ${BUZZ_SECONDS} sekunder på å si svaret. Riktig gir +1 poeng, ikke svar i tide gir −1. Flest poeng vinner.`
+    : 'Dere får hvert deres stykke, annenhver gang. Kortest total tid vinner. Feil svar gir ingen straff, men klokka går. «Hopp over» gir +5 sekunder.';
+}
 try {
   const s = JSON.parse(localStorage.getItem('mattekamp') || 'null');
   if (s) {
     $('#n1').value = s.n1; $('#n2').value = s.n2; $('#g1').value = s.g1; $('#g2').value = s.g2;
     document.querySelectorAll('#countSeg button').forEach(b => b.classList.toggle('on', b.dataset.v == s.c));
     document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === s.m));
+    if (s.gm) document.querySelectorAll('#gameSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === s.gm));
     if (s.f) document.querySelectorAll('#ansSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === s.f));
   }
 } catch (e) {}
 gradeInfo();
+setupUI();
 if (!SR && !IN_ARTIFACT && !NATIVE) {
   $('#srWarn').classList.remove('hidden');
   $('#srWarn').textContent = 'Denne nettleseren støtter ikke talegjenkjenning. Spillet bruker tastatur i stedet. Prøv Chrome på Android eller Safari på iPhone for å svare med stemmen.';
