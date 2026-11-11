@@ -1,3 +1,4 @@
+import AVFoundation
 import UIKit
 
 @main
@@ -12,6 +13,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
         self.window = window
         // Telefonen ligger på bordet under spillet – ikke la skjermen slukke.
         application.isIdleTimerDisabled = true
+        // Lyd ut på høyttaleren, også når mikrofonen er i bruk.
+        try? AVAudioSession.sharedInstance().setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .mixWithOthers])
         return true
     }
 }

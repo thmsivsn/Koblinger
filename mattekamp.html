@@ -5,291 +5,366 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="theme-color" content="#0f1220" />
+<meta name="theme-color" content="#0a0f2c" />
 <title>Mattekamp</title>
 <style>
+  /* Layout: én skjerm om gangen. Menyer i kort på mørk nattblå bakgrunn, spill i fullskjerm. */
   :root{
-    --bg:#0f1220; --panel:#181c2f; --panel-2:#1f2540; --line:#2b3158;
-    --text:#f3f4f6; --muted:#aab1c5;
-    --p1:#3c82f6; --p2:#f59e0b;
-    --good:#22c55e; --bad:#ef4444; --skip:#eab308;
-    --radius:16px;
+    --bg1:#0a0f2c; --bg2:#1d1354; --card:rgba(255,255,255,.07); --card2:rgba(255,255,255,.12); --line:rgba(255,255,255,.14);
+    --text:#f5f6ff; --muted:#a9b0d6; --ink:#10142e;
+    --gold:#ffc83d; --cyan:#38d6ff; --pink:#ff5fa2; --green:#3ddc84; --red:#ff5a5f; --violet:#8f7bff;
+    --p1:#38a0ff; --p2:#ff9a3d; --panel:#141a3d; --good:var(--green); --bad:var(--red); --skip:#eab308;
+    --font:ui-rounded,"SF Pro Rounded","Nunito","Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
     color-scheme:dark;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
   html,body{height:100%; margin:0}
   body{
-    background:var(--bg); color:var(--text);
-    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    overflow:hidden; touch-action:manipulation; user-select:none; -webkit-user-select:none;
+    background:radial-gradient(120% 80% at 50% 0%, var(--bg2), var(--bg1) 70%) fixed var(--bg1); color:var(--text);
+    font-family:var(--font); overflow:hidden; touch-action:manipulation; user-select:none; -webkit-user-select:none;
   }
   .hidden{display:none !important}
-  button{
-    font:inherit; font-weight:700; color:var(--text); background:var(--panel-2);
-    border:1px solid var(--line); border-radius:12px; padding:10px 14px; min-height:44px; cursor:pointer;
-  }
-  button:active{transform:scale(.97)}
-  button.primary{background:var(--good); border-color:transparent; color:#06240f}
+  button{font:inherit; color:inherit; border:0; background:none; cursor:pointer; padding:0}
+  input,select{font:inherit; color:var(--text); background:rgba(0,0,0,.3); border:1.5px solid var(--line); border-radius:14px; padding:12px; min-height:48px; width:100%; user-select:text; -webkit-user-select:text}
+  input:focus,select:focus,button:focus-visible{outline:3px solid var(--cyan); outline-offset:2px}
 
-  /* ---------- Oppsett ---------- */
-  #setup{
-    position:fixed; inset:0; overflow-y:auto; padding:16px;
-    padding-top:calc(16px + env(safe-area-inset-top)); padding-bottom:calc(16px + env(safe-area-inset-bottom));
-  }
-  .card{max-width:560px; margin:0 auto; background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:18px}
-  h1{margin:0 0 4px; font-size:28px}
-  .lead{color:var(--muted); margin:0 0 16px; line-height:1.4}
-  .players{display:grid; grid-template-columns:1fr 1fr; gap:12px}
-  .pbox{border:2px solid var(--line); border-radius:14px; padding:12px; display:flex; flex-direction:column; gap:8px}
-  .pbox.p1{border-color:var(--p1)} .pbox.p2{border-color:var(--p2)}
-  label{font-size:13px; color:var(--muted); font-weight:600}
-  input,select{
-    font:inherit; color:var(--text); background:#101326; border:1px solid var(--line); border-radius:10px;
-    padding:10px; min-height:44px; width:100%;
-  }
-  .row{margin-top:14px; display:flex; flex-direction:column; gap:6px}
+  /* Svevende mattesymboler bak menyene */
+  #bgfx{position:fixed; inset:0; overflow:hidden; pointer-events:none; z-index:0}
+  #bgfx span{position:absolute; bottom:-12vh; font-weight:900; color:#fff; opacity:.07; animation:floatUp linear infinite}
+  @keyframes floatUp{to{transform:translateY(-125vh) rotate(360deg)}}
+  body.ingame #bgfx{display:none}
+  #fx{position:fixed; inset:0; z-index:60; pointer-events:none; display:none}
+
+  /* Skjermer */
+  .screen{position:fixed; inset:0; z-index:1; display:none; flex-direction:column; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    padding:calc(14px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) calc(18px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left))}
+  .screen.show{display:flex; animation:screenIn .32s ease-out}
+  @keyframes screenIn{from{opacity:0; transform:translateY(14px)}}
+  .wrap{width:100%; max-width:560px; margin:0 auto; display:flex; flex-direction:column; gap:14px}
+  .topbar{display:flex; align-items:center; gap:10px; min-height:48px}
+  .topbar h2{margin:0; font-size:24px; flex:1; text-wrap:balance}
+  .back{width:46px; height:46px; border-radius:14px; background:var(--card); border:1.5px solid var(--line); font-size:22px; font-weight:900}
+  .card{background:var(--card); border:1.5px solid var(--line); border-radius:22px; padding:16px; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px)}
+  .lbl{font-size:12px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:0 0 8px}
+  .note{color:var(--muted); font-size:14px; line-height:1.45; margin:0}
+  .warn{background:rgba(255,90,95,.16); border:1.5px solid rgba(255,90,95,.5); border-radius:14px; padding:10px 12px; font-size:14px; line-height:1.4}
+
+  /* Knapper */
+  .btn{display:flex; align-items:center; justify-content:center; gap:8px; min-height:52px; padding:10px 18px; border-radius:16px; font-weight:800; font-size:17px;
+    background:var(--card2); border:1.5px solid var(--line); box-shadow:0 5px 0 rgba(0,0,0,.35); transition:transform .06s, box-shadow .06s}
+  .btn:active{transform:translateY(4px); box-shadow:0 1px 0 rgba(0,0,0,.35)}
+  .btn.gold{background:linear-gradient(180deg,#ffd964,#ffb41f); color:var(--ink); border-color:transparent; box-shadow:0 5px 0 #b97a00}
+  .btn.gold:active{box-shadow:0 1px 0 #b97a00}
+  .btn.green{background:linear-gradient(180deg,#5ff0a0,#27c46e); color:#06240f; border-color:transparent; box-shadow:0 5px 0 #15803d}
+  .btn.danger{background:rgba(255,90,95,.18); border-color:rgba(255,90,95,.5)}
+  .btn.big{min-height:62px; font-size:21px; width:100%}
+  .btn:disabled{opacity:.4; transform:none}
+  .row{display:flex; gap:10px; flex-wrap:wrap}
+  .row > *{flex:1}
   .seg{display:flex; gap:6px; flex-wrap:wrap}
-  .seg button{flex:1; min-width:56px}
-  .seg button.on{background:var(--p1); border-color:transparent}
-  .note{font-size:13px; color:var(--muted); line-height:1.45; margin-top:14px}
-  .warn{background:#3b1d1d; border:1px solid #7f1d1d; color:#fecaca; border-radius:10px; padding:10px; font-size:14px; margin-top:12px}
-  #startBtn{width:100%; margin-top:18px; font-size:20px; min-height:56px}
+  .seg button{flex:1; min-width:64px; min-height:46px; padding:6px 10px; border-radius:13px; font-weight:800; background:rgba(0,0,0,.25); border:1.5px solid var(--line); color:var(--muted)}
+  .seg button.on{background:var(--cyan); color:var(--ink); border-color:transparent}
+  .chips button.on{background:var(--green)}
 
-  /* ---------- Spill ---------- */
-  #game{position:fixed; inset:0; display:flex; flex-direction:column}
-  .half{
-    flex:1; position:relative; display:flex; flex-direction:column; min-height:0;
-    padding:12px 14px; transition:background .25s, opacity .25s;
-    background:var(--panel);
-  }
-  .half.p2{transform:rotate(180deg); padding-top:calc(12px + env(safe-area-inset-bottom)); }
-  .half.p1{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
-  .half.p1{--pc:var(--p1)} .half.p2{--pc:var(--p2)}
-  .half.active{background:color-mix(in srgb, var(--pc) 18%, var(--panel)); box-shadow:inset 0 0 0 4px var(--pc)}
+  /* Avatarer */
+  .av{width:var(--s,48px); height:var(--s,48px); border-radius:50%; overflow:hidden; display:inline-block; flex:none; box-shadow:0 0 0 3px rgba(255,255,255,.2), 0 6px 14px rgba(0,0,0,.35); vertical-align:middle}
+  .av svg{width:100%; height:100%; display:block}
+
+  /* Intro */
+  #intro{align-items:center; justify-content:center; gap:26px; text-align:center; overflow:hidden}
+  .logo{font-weight:900; line-height:.92; letter-spacing:.02em; text-shadow:0 6px 0 rgba(0,0,0,.35)}
+  .logo .l1{font-size:min(19vw,96px); color:#fff}
+  .logo .l2{font-size:min(23vw,118px); background:linear-gradient(180deg,#ffe27a,#ff9a3d); -webkit-background-clip:text; background-clip:text; color:transparent; text-shadow:none; filter:drop-shadow(0 6px 0 rgba(0,0,0,.35))}
+  .logo span{display:inline-block}
+  #intro .l1 span{animation:drop .7s cubic-bezier(.3,1.5,.5,1) both}
+  #intro .l2{animation:stamp .55s cubic-bezier(.2,1.6,.4,1) 1s both}
+  @keyframes drop{from{transform:translateY(-110vh) rotate(-25deg); opacity:0}}
+  @keyframes stamp{from{transform:scale(3.2) rotate(-8deg); opacity:0}}
+  .introavs{display:flex; gap:10px; justify-content:center; flex-wrap:wrap}
+  .introavs .av{--s:min(15vw,70px); animation:pop .5s cubic-bezier(.3,1.7,.5,1) both, bob 2.4s ease-in-out infinite}
+  @keyframes pop{from{transform:scale(0) rotate(-40deg)}}
+  @keyframes bob{50%{translate:0 -8px}}
+  .tap{font-size:20px; font-weight:800; color:var(--gold); animation:fadeIn .5s 2.3s both, pulse 1.3s 2.8s ease-in-out infinite}
+  @keyframes fadeIn{from{opacity:0}}
+  @keyframes pulse{50%{opacity:.45; transform:scale(.97)}}
+  #intro.leave{animation:leave .45s ease-in forwards}
+  @keyframes leave{to{transform:scale(1.6); opacity:0}}
+  .eqfly{position:absolute; font-weight:900; font-size:22px; color:var(--cyan); opacity:0; animation:eqfly 3.2s ease-in-out infinite}
+  @keyframes eqfly{0%{opacity:0; transform:translateY(20px) scale(.6)}25%{opacity:.9}75%{opacity:.9}100%{opacity:0; transform:translateY(-40px) scale(1.1)}}
+
+  /* Hjem */
+  #home .logo{text-align:center; margin:6px 0 2px}
+  #home .logo .l1{font-size:min(13vw,60px)} #home .logo .l2{font-size:min(16vw,74px)}
+  .homeavs{display:flex; justify-content:center; gap:8px; min-height:52px; flex-wrap:wrap}
+  .homeavs .av{--s:46px; animation:bob 2.6s ease-in-out infinite}
+  .mode{display:flex; align-items:center; gap:14px; text-align:left; padding:16px; border-radius:22px; border:1.5px solid var(--line); box-shadow:0 6px 0 rgba(0,0,0,.35); transition:transform .06s, box-shadow .06s;
+    background:linear-gradient(135deg, color-mix(in srgb, var(--mc) 55%, #10142e), color-mix(in srgb, var(--mc) 18%, #10142e))}
+  .mode:active{transform:translateY(5px); box-shadow:0 1px 0 rgba(0,0,0,.35)}
+  .mode .ico{font-size:40px; width:64px; height:64px; display:grid; place-items:center; border-radius:18px; background:rgba(0,0,0,.25); flex:none}
+  .mode b{display:block; font-size:22px} .mode small{color:#dfe3ff; font-size:14px; line-height:1.3; display:block; margin-top:2px}
+  #home.show .mode{animation:slideIn .45s cubic-bezier(.3,1.3,.5,1) both}
+  #home.show .mode:nth-of-type(2){animation-delay:.07s} #home.show .mode:nth-of-type(3){animation-delay:.14s}
+  @keyframes slideIn{from{opacity:0; transform:translateX(-40px)}}
+  .nav{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
+  .nav .btn{flex-direction:column; gap:2px; font-size:13px; min-height:64px; padding:8px 4px} .nav .btn i{font-style:normal; font-size:24px}
+
+  /* Spillere */
+  .pcard{display:flex; align-items:center; gap:14px; text-align:left; width:100%}
+  .pcard .av{--s:64px}
+  .pcard .info{flex:1; min-width:0}
+  .pcard b{font-size:19px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .pcard small{color:var(--muted); font-size:13px; display:block}
+  .xpbar{height:8px; border-radius:99px; background:rgba(0,0,0,.35); overflow:hidden; margin:6px 0 3px}
+  .xpbar i{display:block; height:100%; border-radius:99px; background:linear-gradient(90deg,var(--cyan),var(--violet))}
+  .rank{color:var(--gold); font-weight:800; font-size:13px}
+
+  /* Avatarbygger */
+  .builder{display:flex; flex-direction:column; align-items:center; gap:12px}
+  .builder .av{--s:min(40vw,150px)}
+  .part{display:grid; grid-template-columns:46px 1fr 46px; align-items:center; gap:8px; width:100%}
+  .part button{height:42px; border-radius:12px; background:rgba(0,0,0,.25); border:1.5px solid var(--line); font-size:20px; font-weight:900}
+  .part span{text-align:center; font-weight:800} .part small{color:var(--muted); font-weight:600}
+  .sw{display:flex; gap:8px; flex-wrap:wrap; justify-content:center}
+  .sw button{width:36px; height:36px; border-radius:50%; border:3px solid transparent}
+  .sw button.on{border-color:#fff; transform:scale(1.12)}
+  .stepper{display:grid; grid-template-columns:52px 1fr 52px; gap:8px; align-items:center}
+  .stepper button{height:48px; border-radius:14px; background:rgba(0,0,0,.25); border:1.5px solid var(--line); font-size:24px; font-weight:900}
+  .stepper output{text-align:center; font-size:22px; font-weight:900}
+
+  /* Oppsett: spillervelger */
+  .pick{display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:8px}
+  .pick button{position:relative; display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 4px 8px; border-radius:16px; background:rgba(0,0,0,.25); border:2px solid var(--line); min-width:0}
+  .pick button .av{--s:52px}
+  .pick button b{font-size:14px; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .pick button small{font-size:11px; color:var(--muted)}
+  .pick button.on{border-color:var(--gold); background:rgba(255,200,61,.14)}
+  .pick button .n{position:absolute; top:-7px; right:-5px; width:24px; height:24px; border-radius:50%; background:var(--gold); color:var(--ink); font-weight:900; font-size:14px; display:grid; place-items:center}
+  .pick button.add{border-style:dashed; justify-content:center; color:var(--muted); font-weight:800; font-size:13px} .pick .add i{font-style:normal; font-size:30px; line-height:1}
+
+  /* Historikk og resultater */
+  .hrow{display:flex; flex-direction:column; gap:6px; padding:12px; border-radius:16px; background:rgba(0,0,0,.25); border:1.5px solid var(--line)}
+  .hrow .top{display:flex; justify-content:space-between; gap:8px; color:var(--muted); font-size:12px; font-weight:700}
+  .hrow .who{display:flex; align-items:center; gap:8px; font-weight:800; flex-wrap:wrap}
+  .hrow .who .av{--s:28px} .win{color:var(--gold)}
+  .lb{display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:14px; background:rgba(0,0,0,.25); font-weight:800}
+  .lb .av{--s:34px} .lb .n{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap} .lb small{color:var(--muted)}
+  .stack{display:flex; flex-direction:column; gap:8px}
+  #results .hero{text-align:center; display:flex; flex-direction:column; align-items:center; gap:8px}
+  #results .hero .av{--s:min(34vw,130px); animation:pop .6s cubic-bezier(.3,1.7,.5,1) both}
+  #results h1{margin:0; font-size:32px; text-wrap:balance}
+  .res{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:16px; background:rgba(0,0,0,.25); border:1.5px solid var(--line); animation:slideIn .4s both}
+  .res .av{--s:44px} .res .m{font-size:26px; width:34px; text-align:center} .res .n{flex:1; min-width:0}
+  .res b{display:block; font-size:18px} .res small{color:var(--muted); font-size:13px} .res .sc{font-weight:900; font-size:18px; text-align:right} .res .xp{color:var(--cyan); font-size:12px; font-weight:800}
+  .toggle{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; width:100%; text-align:left; font-weight:700}
+  .toggle + .toggle{border-top:1px solid var(--line)}
+  .toggle i{width:54px; height:32px; border-radius:99px; background:rgba(0,0,0,.4); border:1.5px solid var(--line); position:relative; flex:none; transition:.15s}
+  .toggle i::after{content:""; position:absolute; top:3px; left:3px; width:23px; height:23px; border-radius:50%; background:#fff; transition:.15s}
+  .toggle.on i{background:var(--green)} .toggle.on i::after{left:25px}
+  .toggle small{display:block; color:var(--muted); font-weight:600; font-size:13px}
+
+  /* ---------- Felles spill-elementer ---------- */
+  .mic{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); font-weight:800; min-height:34px}
+  .mic i{width:12px; height:12px; border-radius:50%; background:#555; display:inline-block}
+  .mic.on i{background:var(--red); animation:pulse 1.2s infinite}
+  .keypad{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin:6px auto; width:min(100%,380px)}
+  .keypad button{min-height:min(6.5vh,52px); font-size:22px; font-weight:800; border-radius:12px; background:var(--card2); border:1.5px solid var(--line)}
+  .typed{font-size:min(4.5vh,28px); font-weight:900; min-height:1.2em; letter-spacing:2px}
+  .gbtn{min-height:42px; padding:6px 14px; border-radius:13px; font-weight:800; font-size:14px; background:var(--card2); border:1.5px solid var(--line)}
+  .flash-bad{animation:shake .35s}
+  @keyframes shake{0%,100%{translate:0}25%{translate:-10px}75%{translate:10px}}
+
+  /* ---------- Duell (to halvdeler) ---------- */
+  #duel{padding:0; overflow:hidden}
+  #duel.show{animation:none}
+  .half{flex:1; position:relative; display:flex; flex-direction:column; min-height:0; padding:12px 14px; transition:background .25s, opacity .25s; background:var(--panel)}
+  .half.p2{transform:rotate(180deg); padding-top:calc(12px + env(safe-area-inset-bottom))}
+  .half.p1{padding-bottom:calc(12px + env(safe-area-inset-bottom)); --pc:var(--p1)} .half.p2{--pc:var(--p2)}
+  .half.active{background:color-mix(in srgb, var(--pc) 20%, var(--panel)); box-shadow:inset 0 0 0 4px var(--pc)}
   .half.flash-good{background:color-mix(in srgb, var(--good) 45%, var(--panel)) !important}
-  .half.flash-bad{animation:shake .35s}
-  @keyframes shake{0%,100%{translate:0} 25%{translate:-10px} 75%{translate:10px}}
-
-  .hud{display:flex; align-items:center; gap:10px; font-weight:700}
-  .hud .name{color:var(--pc); font-size:18px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:42%; display:flex; align-items:center; gap:6px}
-  .prog{flex:1; display:flex; gap:4px; flex-wrap:wrap; justify-content:center}
+  .hud{display:flex; align-items:center; gap:10px; font-weight:800}
+  .hud .name{color:var(--pc); font-size:18px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:44%; display:flex; align-items:center; gap:7px}
+  .hud .av{--s:30px; box-shadow:0 0 0 2px var(--pc)}
+  .prog{flex:1; display:flex; gap:4px; flex-wrap:wrap; justify-content:center; font-size:15px}
   .dot{width:12px; height:12px; border-radius:50%; background:#323a63}
   .dot.ok{background:var(--good)} .dot.skip{background:var(--skip)} .dot.now{box-shadow:0 0 0 2px var(--pc)}
   .clock{font-variant-numeric:tabular-nums; font-size:18px; min-width:70px; text-align:right}
-
-  .stage{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; min-height:0; text-align:center}
-  .status{color:var(--muted); font-weight:700; font-size:16px; min-height:20px}
-  .problem{
-    font-weight:800; line-height:1.05; white-space:nowrap; font-variant-numeric:tabular-nums;
-    font-size:min(11vh, 22vw, calc(150vw / var(--len, 5)));
-  }
+  .clock.hurry{color:var(--bad)}
+  .stage{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; min-height:0; text-align:center; overflow:hidden}
+  .status{color:var(--muted); font-weight:800; font-size:16px; min-height:20px}
+  .problem{font-weight:900; line-height:1.05; white-space:nowrap; font-variant-numeric:tabular-nums; font-size:min(11vh,22vw,calc(150vw / var(--len,5)))}
   .problem .q{color:var(--muted)}
-  .half:not(.active) .problem{font-size:min(5vh, 9vw, calc(70vw / var(--len,5))); color:var(--muted)}
-  .heard{min-height:28px; font-size:20px; color:var(--muted)}
-  .heard.bad{color:var(--bad)} .heard.good{color:var(--good); font-weight:800}
-
+  .half:not(.active) .problem{font-size:min(5vh,9vw,calc(70vw / var(--len,5))); color:var(--muted)}
+  .heard{min-height:28px; font-size:20px; color:var(--muted); font-weight:700}
+  .heard.bad{color:var(--bad)} .heard.good{color:var(--good); font-weight:900}
   .actions{display:flex; gap:8px; justify-content:center}
-  .actions button{font-size:14px}
-  .half:not(.active) .skip, .half.active .approve{display:none}
-  .half:not(.active) .keypad{display:none}
-
-  .keypad{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin:6px auto; width:min(100%,380px)}
-  .keypad button{min-height:min(6.5vh,52px); font-size:22px; padding:4px}
-  .typed{font-size:min(6vh,32px); font-weight:800; min-height:1.2em; letter-spacing:2px}
-
-  .mid{
-    flex:0 0 auto; height:46px; display:flex; align-items:center; justify-content:center; gap:10px;
-    background:#0b0d18; border-top:1px solid var(--line); border-bottom:1px solid var(--line);
-  }
-  .mic{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); font-weight:700; background:none; border:0}
-  .mic i{width:12px; height:12px; border-radius:50%; background:#555; display:inline-block}
-  .mic.on i{background:var(--bad); animation:pulse 1.2s infinite}
-  @keyframes pulse{50%{opacity:.35}}
-  .mid button{min-height:34px; padding:4px 12px; font-size:14px}
-
-  .overlay{
-    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
-    gap:10px; text-align:center; padding:16px; background:var(--panel); z-index:3;
-  }
+  .half:not(.active) .skip, .half.active .approve, .half:not(.active) .ear, .half:not(.active) .keypad{display:none}
+  #duel.keys .half.active .problem{font-size:min(7vh,16vw,calc(110vw / var(--len,5)))}
+  #duel.keys .half.active .status{display:none} #duel.keys .heard{min-height:20px; font-size:16px} #duel.keys .stage{gap:2px}
+  .mid{flex:0 0 auto; height:46px; display:flex; align-items:center; justify-content:center; gap:14px; background:#070a1c; border-top:1px solid var(--line); border-bottom:1px solid var(--line)}
+  .overlay{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; text-align:center; padding:16px; background:var(--panel); z-index:3}
   .overlay .big{font-size:min(20vh,40vw); font-weight:900; color:var(--pc)}
   .overlay h2{margin:0; font-size:min(6vh,34px)}
-  .overlay .stats{color:var(--muted); font-size:min(2.6vh,17px); line-height:1.6}
-  .overlay .stats b{color:var(--text)}
-
-  /* Øre-knapp og buzzer-modus */
-  .half:not(.active) .ear{display:none}
-  .buzzer{
-    display:none; width:min(20vh,36vw); height:min(20vh,36vw); border-radius:50%; margin-top:4px;
+  .overlay .av{--s:min(12vh,84px)}
+  .overlay .stats{color:var(--muted); font-size:min(2.6vh,17px); line-height:1.55} .overlay .stats b{color:var(--text)}
+  .buzzer{display:none; width:min(20vh,36vw); height:min(20vh,36vw); border-radius:50%; margin-top:4px; color:var(--ink); font-size:min(4vh,22px); font-weight:900;
     background:radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--pc) 70%, white), var(--pc) 60%, color-mix(in srgb, var(--pc) 60%, black));
-    border:4px solid color-mix(in srgb, var(--pc) 50%, black); color:#0b0d18; font-size:min(4vh,22px); font-weight:900;
-    box-shadow:0 8px 0 color-mix(in srgb, var(--pc) 45%, black), 0 12px 24px rgba(0,0,0,.4);
-  }
+    border:4px solid color-mix(in srgb, var(--pc) 50%, black); box-shadow:0 8px 0 color-mix(in srgb, var(--pc) 45%, black), 0 12px 24px rgba(0,0,0,.4)}
   .buzzer:active{transform:translateY(6px); box-shadow:0 2px 0 color-mix(in srgb, var(--pc) 45%, black)}
   .buzzer:disabled{filter:grayscale(1) brightness(.5); transform:none}
-  #game.buzz .buzzer{display:block}
-  #game.buzz.answering .buzzer{display:none}
-  #game.buzz .skip{display:none}
-  #game.buzz:not(.answering) .approve{display:none}
-  #game.buzz .half:not(.active) .problem{font-size:min(10vh,20vw,calc(140vw / var(--len,5))); color:var(--text)}
-  #game.buzz .half.out{opacity:.55}
-  .clock.hurry{color:var(--bad)}
+  #duel.buzz .buzzer{display:block} #duel.buzz.answering .buzzer{display:none} #duel.buzz .skip{display:none}
+  #duel.buzz:not(.answering) .approve{display:none}
+  #duel.buzz .half:not(.active) .problem{font-size:min(10vh,20vw,calc(140vw / var(--len,5))); color:var(--text)}
+  #duel.buzz .half.out{opacity:.55}
 
-  /* Regnearter, avatarer og historikk */
-  .chips{display:flex; flex-wrap:wrap; gap:6px}
-  .chips button{flex:1 1 auto; min-width:90px; opacity:.55}
-  .chips button.on{opacity:1; background:var(--good); color:#06240f; border-color:transparent}
-  .avatar{display:inline-grid; place-items:center; border-radius:50%; background:var(--avc,#334); line-height:1; flex:0 0 auto}
-  .avbtn{display:flex; align-items:center; gap:10px; background:#101326; text-align:left; padding:6px 10px}
-  .avbtn .avatar{width:52px; height:52px; font-size:32px}
-  .avbtn small{color:var(--muted); font-weight:600}
-  .hud .avatar{width:30px; height:30px; font-size:19px}
-  .overlay .avatar{width:min(12vh,84px); height:min(12vh,84px); font-size:min(8vh,54px)}
-  #game.keys .half.active .problem{font-size:min(7vh,16vw,calc(110vw / var(--len,5)))}
-  #game.keys .stage{gap:2px}
-  #game.keys .half.active .status{display:none}
-  #game.keys .heard{min-height:20px; font-size:16px}
-  #game.keys .typed{font-size:min(4.5vh,28px)}
-  .stage{overflow:hidden}
-  #avPicker, #history{position:fixed; inset:0; z-index:20; background:rgba(5,6,12,.96); overflow-y:auto; padding:16px;
-    padding-top:calc(16px + env(safe-area-inset-top)); padding-bottom:calc(16px + env(safe-area-inset-bottom))}
-  .avgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(56px,1fr)); gap:8px; margin:12px 0}
-  .avgrid button{font-size:32px; min-height:58px; padding:0; background:#101326}
-  .avgrid button.on{outline:3px solid var(--good)}
-  .swatches{display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 14px}
-  .swatches button{width:40px; height:40px; min-height:40px; border-radius:50%; padding:0; border:3px solid transparent}
-  .swatches button.on{border-color:#fff}
-  .hgrid{display:grid; gap:8px; margin:10px 0}
-  .hrow{background:#101326; border:1px solid var(--line); border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; gap:4px}
-  .hrow .top{display:flex; justify-content:space-between; color:var(--muted); font-size:12px; font-weight:600}
-  .hrow .vs{display:flex; align-items:center; gap:8px; font-weight:700; flex-wrap:wrap}
-  .hrow .vs .avatar{width:28px; height:28px; font-size:17px}
-  .hrow .win{color:var(--good)}
-  .board{display:grid; gap:6px; margin:8px 0 4px}
-  .board div{display:flex; align-items:center; gap:10px; background:#101326; border-radius:10px; padding:8px 10px; font-weight:700}
-  .board .avatar{width:32px; height:32px; font-size:20px}
-  .board span.n{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-  .board small{color:var(--muted); font-weight:600}
-  .btnrow{display:flex; gap:8px; flex-wrap:wrap}
-  .btnrow button{flex:1}
-
-  #pause{position:fixed; inset:0; background:rgba(5,6,12,.85); display:flex; align-items:center; justify-content:center; gap:12px; z-index:10}
-  #pause button{font-size:20px; min-height:60px; padding:10px 24px}
+  /* ---------- Fest og trening (én retning) ---------- */
+  #rr{overflow:hidden; gap:8px}
+  .rrtop{display:flex; align-items:center; gap:10px}
+  .rrtop .t{flex:1; text-align:center; font-weight:900; font-size:17px}
+  .rrmain{flex:1; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; text-align:center; border-radius:26px; transition:background .2s}
+  .rrmain.good{background:rgba(61,220,132,.22)}
+  .ringwrap{position:relative; width:min(22vh,42vw); height:min(22vh,42vw); flex:none}
+  .ring{position:absolute; inset:0; transform:rotate(-90deg)}
+  .ring circle{fill:none; stroke-width:7} .ring .rbg{stroke:rgba(255,255,255,.12)} .ring .rfg{stroke:var(--cyan); stroke-linecap:round; stroke-dasharray:339.3; transition:stroke .2s}
+  .ring.hurry .rfg{stroke:var(--red)}
+  .ringwrap .av{position:absolute; inset:9%; width:auto; height:auto; box-shadow:none}
+  .rrname{font-size:min(4.2vh,30px); font-weight:900}
+  .rrsub{color:var(--gold); font-weight:800; min-height:22px; font-size:17px}
+  .rrprob{font-weight:900; line-height:1.05; white-space:nowrap; font-variant-numeric:tabular-nums; font-size:min(12vh,20vw,calc(150vw / var(--len,5)))}
+  .rrprob .q{color:var(--muted)}
+  #rr.keys .rrprob{font-size:min(8vh,16vw,calc(110vw / var(--len,5)))} #rr.keys .ringwrap{width:min(13vh,30vw); height:min(13vh,30vw)}
+  .rractions{display:flex; gap:8px; justify-content:center; flex-wrap:wrap}
+  .rrscore{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; min-height:44px}
+  .chip{display:flex; align-items:center; gap:6px; padding:4px 10px 4px 4px; border-radius:99px; background:var(--card); border:1.5px solid var(--line); font-weight:900}
+  .chip .av{--s:30px; box-shadow:none} .chip.now{border-color:var(--gold); background:rgba(255,200,61,.16)}
+  #count{position:fixed; inset:0; z-index:40; display:none; align-items:center; justify-content:center; flex-direction:column; gap:10px; background:rgba(10,15,44,.94); text-align:center}
+  #count.show{display:flex}
+  #count b{font-size:min(40vw,34vh); font-weight:900; color:var(--gold); animation:stamp .45s cubic-bezier(.2,1.6,.4,1)}
+  #count span{font-size:20px; font-weight:800; color:var(--muted)}
+  #pause{position:fixed; inset:0; z-index:50; background:rgba(5,6,18,.9); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:24px}
+  #pause .btn{width:min(100%,320px)}
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:.01ms !important; animation-iteration-count:1 !important} }
 </style>
 </head>
 <body>
+<div id="bgfx"></div>
+<canvas id="fx"></canvas>
+
+<!-- ============ INTRO ============ -->
+<div id="intro" class="screen show">
+  <div class="logo"><div class="l1"></div><div class="l2">KAMP</div></div>
+  <div class="introavs"></div>
+  <div class="tap">Trykk for å starte</div>
+</div>
+
+<!-- ============ HJEM ============ -->
+<div id="home" class="screen"><div class="wrap">
+  <div class="logo"><div class="l1">MATTE</div><div class="l2">KAMP</div></div>
+  <div class="homeavs"></div>
+  <button class="mode" style="--mc:#38a0ff" data-mode="duel"><span class="ico">⚔️</span><span><b>Duell</b><small>To spillere med telefonen mellom seg. Annenhver tur eller buzzer.</small></span></button>
+  <button class="mode" style="--mc:#ff5fa2" data-mode="party"><span class="ico">🎉</span><span><b>Fest</b><small>2–8 spillere. Stemmen sier hvem sin tur det er og leser stykket.</small></span></button>
+  <button class="mode" style="--mc:#3ddc84" data-mode="train"><span class="ico">🎯</span><span><b>Trening</b><small>Én spiller. Slå din egen rekord på 60 sekunder.</small></span></button>
+  <div class="nav">
+    <button class="btn" data-go="players"><i>👥</i>Spillere</button>
+    <button class="btn" data-go="history"><i>📜</i>Historikk</button>
+    <button class="btn" data-go="settings"><i>⚙️</i>Innstillinger</button>
+  </div>
+</div></div>
+
+<!-- ============ SPILLERE ============ -->
+<div id="players" class="screen"><div class="wrap">
+  <div class="topbar"><button class="back" data-go="home" aria-label="Tilbake">‹</button><h2>Spillere</h2></div>
+  <div class="stack" id="playerList"></div>
+  <button class="btn gold big" id="newPlayer">＋ Ny spiller</button>
+</div></div>
+
+<!-- ============ SPILLER-EDITOR ============ -->
+<div id="editor" class="screen"><div class="wrap">
+  <div class="topbar"><button class="back" id="edBack" aria-label="Tilbake">‹</button><h2 id="edTitle">Ny spiller</h2></div>
+  <div class="card builder">
+    <span id="edAv"></span>
+    <button class="btn" id="edRandom">🎲 Tilfeldig figur</button>
+    <div id="edParts" style="width:100%; display:flex; flex-direction:column; gap:8px"></div>
+    <p class="lbl" style="margin:6px 0 0">Farge</p><div class="sw" id="edCol"></div>
+    <p class="lbl" style="margin:6px 0 0">Bakgrunn</p><div class="sw" id="edBg"></div>
+  </div>
+  <div class="card stack">
+    <div><p class="lbl">Navn</p><input id="edName" maxlength="14" placeholder="Navn" autocomplete="off" /></div>
+    <div><p class="lbl">Alder</p><div class="stepper"><button id="ageDown" aria-label="Yngre">−</button><output id="edAge">10 år</output><button id="ageUp" aria-label="Eldre">＋</button></div></div>
+    <div><p class="lbl">Nivå <span style="text-transform:none; letter-spacing:0">(foreslås ut fra alder)</span></p><select id="edGrade"></select><p class="note" id="edGradeInfo" style="margin-top:6px"></p></div>
+  </div>
+  <button class="btn green big" id="edSave">Lagre spiller</button>
+  <button class="btn danger" id="edDelete">🗑 Slett spiller</button>
+</div></div>
 
 <!-- ============ OPPSETT ============ -->
-<div id="setup">
-  <div class="card">
-    <h1>🧮 Mattekamp</h1>
-    <p class="lead">To spillere. Legg telefonen flatt mellom dere og <b>si svaret høyt</b>. Du kan rette deg selv underveis: «25 … nei, 26!» godtas hvis 26 er riktig.</p>
+<div id="setup" class="screen"><div class="wrap">
+  <div class="topbar"><button class="back" data-go="home" aria-label="Tilbake">‹</button><h2 id="suTitle"></h2></div>
+  <div id="suBody" class="stack" style="gap:14px"></div>
+  <button class="btn gold big" id="suStart">Start!</button>
+</div></div>
 
-    <div class="row" style="margin-top:0">
-      <label>Spillmodus</label>
-      <div class="seg" id="gameSeg">
-        <button data-v="turn" class="on">🔁 Annenhver tur</button><button data-v="buzz">🔔 Buzzer</button>
-      </div>
-      <p class="note" id="gameInfo" style="margin-top:4px"></p>
-    </div>
+<!-- ============ HISTORIKK ============ -->
+<div id="history" class="screen"><div class="wrap">
+  <div class="topbar"><button class="back" data-go="home" aria-label="Tilbake">‹</button><h2>Historikk</h2></div>
+  <div id="histBody" class="stack" style="gap:14px"></div>
+</div></div>
 
-    <div class="players">
-      <div class="pbox p1">
-        <label for="n1">Spiller 1 (denne siden)</label>
-        <button class="avbtn" id="av1" data-p="0"></button>
-        <input id="n1" value="Spiller 1" maxlength="14" />
-        <label for="g1" id="g1lbl">Nivå</label>
-        <select id="g1"></select>
-      </div>
-      <div class="pbox p2">
-        <label for="n2">Spiller 2 (motsatt side)</label>
-        <button class="avbtn" id="av2" data-p="1"></button>
-        <input id="n2" value="Spiller 2" maxlength="14" />
-        <label for="g2" class="g2row">Nivå</label>
-        <select id="g2" class="g2row"></select>
-      </div>
-    </div>
-    <p class="note" id="gradeInfo"></p>
+<!-- ============ INNSTILLINGER ============ -->
+<div id="settings" class="screen"><div class="wrap">
+  <div class="topbar"><button class="back" data-go="home" aria-label="Tilbake">‹</button><h2>Innstillinger</h2></div>
+  <div class="card" id="setList"></div>
+  <button class="btn danger" id="wipe">🗑 Slett alle spillere og kamper</button>
+  <p class="note">Spillere, rekorder og kamper lagres bare på denne enheten.</p>
+</div></div>
 
-    <div class="row">
-      <label id="countLbl">Oppgaver per spiller</label>
-      <div class="seg" id="countSeg">
-        <button data-v="5">5</button><button data-v="10" class="on">10</button><button data-v="15">15</button><button data-v="20">20</button>
-      </div>
-    </div>
+<!-- ============ RESULTAT (fest og trening) ============ -->
+<div id="results" class="screen"><div class="wrap">
+  <div class="hero" id="resHero"></div>
+  <div class="stack" id="resList"></div>
+  <div class="row"><button class="btn gold" id="resAgain">↻ Spill igjen</button><button class="btn" data-go="home">Meny</button></div>
+</div></div>
 
-    <div class="row">
-      <label>Svar med</label>
-      <div class="seg" id="modeSeg">
-        <button data-v="voice" class="on">🎤 Stemme</button><button data-v="keys">⌨️ Tastatur</button>
-      </div>
-    </div>
-
-    <div class="row">
-      <label>Regnearter som kan være med</label>
-      <div class="chips" id="opsChips"></div>
-    </div>
-
-    <div class="row" id="ansRow">
-      <label>Fasit for den som venter</label>
-      <div class="seg" id="ansSeg">
-        <button data-v="hide" class="on">🙈 Skjul fasit</button><button data-v="show">👀 Vis fasit</button>
-      </div>
-    </div>
-
-    <div id="srWarn" class="warn hidden"></div>
-
-    <button id="startBtn" class="primary">Start!</button>
-    <button id="histBtn" style="width:100%; margin-top:10px">📜 Kamphistorikk</button>
-
-    <p class="note">
-      Tips: Lås skjermrotasjonen på telefonen. Trykk «👂 Hør på nytt» hvis mikrofonen har fått med seg surreprat.
-      Hvis mikrofonen ikke oppfatter et riktig svar, kan motstanderen trykke «✓ Godkjenn».
-      Talegjenkjenning fungerer best i Chrome (Android) og Safari (iPhone), og siden må åpnes via https.
-    </p>
-  </div>
+<!-- ============ DUELL ============ -->
+<div id="duel" class="screen">
+  <section class="half p2"></section>
+  <div class="mid"><button class="mic"><i></i><span class="mictxt">Mikrofon av</span></button><button class="gbtn" data-pause>⏸ Pause</button></div>
+  <section class="half p1"></section>
 </div>
 
-<!-- ============ SPILL ============ -->
-<div id="game" class="hidden">
-  <section class="half p2" data-p="1"></section>
-  <div class="mid">
-    <button class="mic" id="mic"><i></i><span id="micTxt">Mikrofon av</span></button>
-    <button id="pauseBtn">⏸ Pause</button>
+<!-- ============ FEST / TRENING ============ -->
+<div id="rr" class="screen">
+  <div class="rrtop"><button class="gbtn" data-pause>⏸</button><div class="t" id="rrTitle"></div><button class="mic"><i></i><span class="mictxt">Av</span></button></div>
+  <div class="rrmain" id="rrMain">
+    <div class="ringwrap"><svg class="ring" id="rrRing" viewBox="0 0 120 120"><circle class="rbg" cx="60" cy="60" r="54"/><circle class="rfg" id="rrFg" cx="60" cy="60" r="54"/></svg><span id="rrAv"></span></div>
+    <div class="rrname" id="rrName"></div>
+    <div class="rrsub" id="rrSub"></div>
+    <div class="rrprob" id="rrProb"></div>
+    <div class="heard" id="rrHeard"></div>
+    <div class="typed hidden" id="rrTyped"></div>
   </div>
-  <section class="half p1" data-p="0"></section>
+  <div class="keypad hidden" id="rrKeys"></div>
+  <div class="rractions"><button class="gbtn" id="rrRepeat">🔁 Gjenta</button><button class="gbtn" id="rrEar">👂 Hør på nytt</button><button class="gbtn" id="rrSkip">⏭ Pass</button></div>
+  <div class="rrscore" id="rrScore"></div>
 </div>
 
-<div id="avPicker" class="hidden">
-  <div class="card">
-    <h1 style="font-size:22px">Velg avatar</h1>
-    <div class="avgrid" id="avGrid"></div>
-    <label>Bakgrunnsfarge</label>
-    <div class="swatches" id="avColors"></div>
-    <button class="primary" id="avDone" style="width:100%">Ferdig</button>
-  </div>
-</div>
-
-<div id="history" class="hidden">
-  <div class="card">
-    <h1 style="font-size:22px">📜 Kamphistorikk</h1>
-    <div id="histBody"></div>
-    <div class="btnrow" style="margin-top:12px">
-      <button id="histBack" class="primary">Tilbake</button>
-      <button id="histClear">🗑 Slett historikk</button>
-    </div>
-  </div>
-</div>
-
+<div id="count"><b></b><span></span></div>
 <div id="pause" class="hidden">
-  <button id="resumeBtn" class="primary">▶ Fortsett</button>
-  <button id="quitBtn">✕ Avslutt</button>
+  <h2 style="margin:0">Pause</h2>
+  <button class="btn green big" id="resumeBtn">▶ Fortsett</button>
+  <button class="btn big" id="quitBtn">✕ Avslutt spillet</button>
 </div>
 
 <script>
 'use strict';
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmtTime = ms => (ms / 1000).toFixed(1).replace('.', ',') + ' s';
+const G = { mode: '', input: 'voice', ops: null, running: false, again: null };
+let paused = false, pausedAt = 0;
 
 /* =========================================================
-   1. Oppgavegenerator – 1. til 10. klasse
+   Oppgaver og tolking av norske tallord
    ========================================================= */
 const R = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 const pick = arr => arr[R(0, arr.length - 1)];
@@ -495,23 +570,188 @@ function parseNumbers(text) {
   return out;
 }
 
+
+
 /* =========================================================
-   3. Lyd og skjerm-lås
+   Lagring: spillere, innstillinger, historikk
    ========================================================= */
-let actx = null;
-function beep(freqs, dur = .12) {
-  try {
-    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-    let t = actx.currentTime;
-    for (const f of freqs) {
-      const o = actx.createOscillator(), g = actx.createGain();
-      o.frequency.value = f; o.type = 'sine';
-      g.gain.setValueAtTime(.18, t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
-      o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur);
-      t += dur * .8;
-    }
-  } catch (e) {}
+const DB_KEY = 'mattekamp_v2';
+const ALL_OPS = OPS.map(o => o.k);
+function freshDB() { return { players: [], settings: { music: true, sfx: true, readAloud: false, showAns: false }, history: [], last: {} }; }
+let DB = (() => { try { const d = JSON.parse(localStorage.getItem(DB_KEY)); if (d && Array.isArray(d.players)) return Object.assign(freshDB(), d); } catch (e) {} return freshDB(); })();
+function save() { try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catch (e) {} }
+const prof = id => DB.players.find(p => p.id === id);
+const gradeForAge = age => Math.max(1, Math.min(10, age - 5));
+function newProfile(name, age) {
+  return { id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, age, grade: gradeForAge(age), av: randAv(), xp: 0, games: 0, wins: 0, best: 0 };
 }
+const RANKS = [[0, 'Nybegynner'], [100, 'Tallvenn'], [300, 'Regnerev'], [700, 'Tallknuser'], [1500, 'Mattehelt'], [3000, 'Mattemester'], [6000, 'Mattelegende']];
+function rankOf(xp) {
+  let i = 0; while (i + 1 < RANKS.length && xp >= RANKS[i + 1][0]) i++;
+  const next = RANKS[i + 1];
+  return { title: RANKS[i][1], frac: next ? (xp - RANKS[i][0]) / (next[0] - RANKS[i][0]) : 1, next: next ? next[0] : null };
+}
+
+/* =========================================================
+   Avatarer: figurer satt sammen av deler
+   ========================================================= */
+const AV_COL = ['#ff5a5f', '#ff9a3d', '#ffc83d', '#3ddc84', '#2ec4b6', '#38a0ff', '#7b6cff', '#c264ff', '#ff5fa2', '#9aa5b1'];
+const AV_BG = ['#1b2a63', '#47236e', '#0f4a4c', '#5a2236', '#2f3442', '#234a86', '#5a4716', '#17502f'];
+const AV_N = { body: 6, eyes: 7, mouth: 6, top: 8, extra: 6 };
+const AV_LABEL = { body: 'Kropp', eyes: 'Øyne', mouth: 'Munn', top: 'Hode', extra: 'Ekstra' };
+const rnd = n => Math.floor(Math.random() * n);
+function randAv() { return { body: rnd(6), eyes: rnd(7), mouth: rnd(6), top: rnd(8), extra: rnd(6), col: rnd(10), bg: rnd(8) }; }
+function avSVG(a) {
+  a = a || { body: 0, eyes: 0, mouth: 0, top: 0, extra: 0, col: 5, bg: 0 };
+  const K = '#10142e', c = AV_COL[a.col % 10], bg = AV_BG[a.bg % 8];
+  const body = [
+    '<path d="M20 104V60Q20 27 50 27Q80 27 80 60V104Z"/>',
+    '<rect x="22" y="29" width="56" height="80" rx="13"/>',
+    '<ellipse cx="50" cy="72" rx="31" ry="45"/>',
+    '<path d="M19 104V52L27 34L35 47L43 29L50 43L57 29L65 47L73 34L81 52V104Z"/>',
+    '<path d="M14 104Q12 30 50 30Q88 30 86 104Z"/>',
+    '<path d="M22 104V50L25 22L41 37Q50 33 59 37L75 22L78 50V104Z"/>',
+  ][a.body % 6];
+  const eyes = [
+    `<circle cx="38" cy="55" r="9" fill="#fff"/><circle cx="62" cy="55" r="9" fill="#fff"/><circle cx="40" cy="56" r="4" fill="${K}" stroke="none"/><circle cx="60" cy="56" r="4" fill="${K}" stroke="none"/>`,
+    `<circle cx="50" cy="54" r="15" fill="#fff"/><circle cx="50" cy="56" r="7" fill="${K}" stroke="none"/><circle cx="53" cy="53" r="2.2" fill="#fff" stroke="none"/>`,
+    `<circle cx="32" cy="55" r="7" fill="#fff"/><circle cx="50" cy="50" r="7" fill="#fff"/><circle cx="68" cy="55" r="7" fill="#fff"/><g fill="${K}" stroke="none"><circle cx="32" cy="56" r="3"/><circle cx="50" cy="51" r="3"/><circle cx="68" cy="56" r="3"/></g>`,
+    `<path d="M29 58Q38 46 47 58M53 58Q62 46 71 58" fill="none" stroke-width="4" stroke-linecap="round"/>`,
+    `<circle cx="38" cy="57" r="8" fill="#fff"/><circle cx="62" cy="57" r="8" fill="#fff"/><circle cx="40" cy="58" r="3.6" fill="${K}" stroke="none"/><circle cx="60" cy="58" r="3.6" fill="${K}" stroke="none"/><path d="M27 44L46 51M73 44L54 51" stroke-width="4.5" stroke-linecap="round"/>`,
+    `<rect x="27" y="46" width="46" height="17" rx="8.5" fill="${K}"/><circle cx="40" cy="54.5" r="3.6" fill="#38d6ff" stroke="none"/><circle cx="60" cy="54.5" r="3.6" fill="#38d6ff" stroke="none"/>`,
+    `<ellipse cx="38" cy="55" rx="8" ry="11" fill="${K}"/><ellipse cx="62" cy="55" rx="8" ry="11" fill="${K}"/><g fill="#fff" stroke="none"><circle cx="41" cy="51" r="3"/><circle cx="65" cy="51" r="3"/><circle cx="36" cy="59" r="1.5"/><circle cx="60" cy="59" r="1.5"/></g>`,
+  ][a.eyes % 7];
+  const mouth = [
+    `<path d="M38 73Q50 85 62 73" fill="none" stroke-width="3.5" stroke-linecap="round"/>`,
+    `<path d="M35 71Q50 93 65 71Z" fill="${K}"/><path d="M42 72h16v5h-16z" fill="#fff" stroke="none"/>`,
+    `<path d="M37 74Q50 83 63 74" fill="none" stroke-width="3.5" stroke-linecap="round"/><path d="M41 76l3 8 3-7zM53 77l3 7 3-8z" fill="#fff" stroke-width="1.5"/>`,
+    `<ellipse cx="50" cy="77" rx="5" ry="6" fill="${K}"/>`,
+    `<rect x="37" y="71" width="26" height="10" rx="3" fill="#fff"/><path d="M43.5 71v10M50 71v10M56.5 71v10" stroke-width="2"/>`,
+    `<path d="M36 71Q50 91 64 71Z" fill="${K}"/><ellipse cx="50" cy="81" rx="7" ry="5" fill="#ff5fa2" stroke="none"/>`,
+  ][a.mouth % 6];
+  const top = [
+    '',
+    `<path d="M50 28V13" stroke-width="3.5"/><circle cx="50" cy="10" r="5.5" fill="#ffc83d"/>`,
+    `<path d="M27 38Q20 24 27 15Q35 24 39 32Z" fill="#fff5d6"/><path d="M73 38Q80 24 73 15Q65 24 61 32Z" fill="#fff5d6"/>`,
+    `<path d="M31 32V13l9 9 10-12 10 12 9-9v19Z" fill="#ffc83d"/><circle cx="50" cy="25" r="2.6" fill="#ff5a5f" stroke="none"/>`,
+    `<path d="M25 35Q27 13 50 13Q73 13 75 35Z" fill="#ff5a5f"/><path d="M66 34h22" stroke-width="6" stroke-linecap="round" stroke="#c9373c"/>`,
+    `<path d="M38 31L41 12L47 24L50 7L53 24L59 12L62 31Z" fill="#ff5fa2"/>`,
+    `<path d="M37 31L50 5L63 31Z" fill="#38d6ff"/><path d="M45 19l9 3M42 25l15 3" stroke="#fff" stroke-width="2.2"/><circle cx="50" cy="6" r="4.2" fill="#ffc83d"/>`,
+    `<path d="M21 58Q18 19 50 19Q82 19 79 58" fill="none" stroke-width="5.5"/><rect x="13" y="49" width="12" height="19" rx="5.5" fill="#ff5a5f"/><rect x="75" y="49" width="12" height="19" rx="5.5" fill="#ff5a5f"/>`,
+  ][a.top % 8];
+  const extra = [
+    '',
+    `<g fill="rgba(255,255,255,.16)" stroke-width="3"><circle cx="37.5" cy="55" r="12"/><circle cx="62.5" cy="55" r="12"/></g>`,
+    `<g fill="#ff5fa2" opacity=".6" stroke="none"><circle cx="27" cy="69" r="5.5"/><circle cx="73" cy="69" r="5.5"/></g>`,
+    `<g fill="${K}" opacity=".55" stroke="none"><circle cx="27" cy="67" r="1.6"/><circle cx="32" cy="70" r="1.6"/><circle cx="26" cy="72" r="1.6"/><circle cx="73" cy="67" r="1.6"/><circle cx="68" cy="70" r="1.6"/><circle cx="74" cy="72" r="1.6"/></g>`,
+    `<path d="M50 69Q44 63 35 69Q42 75 50 70Q58 75 65 69Q56 63 50 69Z" fill="${K}"/>`,
+    `<path d="M73 62l1.9 4 4.4.5-3.3 3 .9 4.3-3.9-2.1-3.9 2.1.9-4.3-3.3-3 4.4-.5z" fill="#ffc83d" stroke-width="1.5"/>`,
+  ][a.extra % 6];
+  return `<svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="${bg}"/><circle cx="50" cy="118" r="60" fill="#fff" opacity=".06"/>`
+    + `<g stroke="${K}" stroke-width="3" stroke-linejoin="round">${a.top === 7 ? '' : top}<g fill="${c}">${body}</g>`
+    + `<ellipse cx="50" cy="98" rx="17" ry="12" fill="#fff" opacity=".22" stroke="none"/><g stroke-width="2.5">${eyes}${mouth}${extra}</g>${a.top === 7 ? top : ''}</g></svg>`;
+}
+const av = (a, size) => `<span class="av"${size ? ` style="--s:${size}px"` : ''}>${avSVG(a)}</span>`;
+
+/* =========================================================
+   Lyd: effekter, musikk og stemme
+   ========================================================= */
+let AC = null, musicGain = null, sfxGain = null;
+function actx() {
+  try {
+    if (!AC) {
+      AC = new (window.AudioContext || window.webkitAudioContext)();
+      musicGain = AC.createGain(); musicGain.gain.value = .5; musicGain.connect(AC.destination);
+      sfxGain = AC.createGain(); sfxGain.gain.value = 1; sfxGain.connect(AC.destination);
+    }
+    if (AC.state === 'suspended') AC.resume();
+  } catch (e) {}
+  return AC;
+}
+function tone(f, t, dur, type = 'sine', vol = .18, dest) {
+  const c = AC; if (!c) return;
+  const o = c.createOscillator(), g = c.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + .012); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(dest || sfxGain); o.start(t); o.stop(t + dur + .02);
+  return o;
+}
+function play(notes, type = 'sine', vol = .18, step = .09, dur = .14) {
+  if (!DB.settings.sfx) return; const c = actx(); if (!c) return;
+  notes.forEach((f, i) => f && tone(f, c.currentTime + i * step, dur, type, vol));
+}
+const sfx = {
+  ok: () => play([660, 990], 'triangle', .22),
+  bad: () => play([220, 180], 'sawtooth', .1, .1, .16),
+  buzz: () => play([523, 784], 'square', .12, .07, .1),
+  click: () => play([520], 'triangle', .1, .05, .06),
+  tick: () => play([880], 'square', .06, .05, .05),
+  count: () => play([440], 'triangle', .2, .1, .12),
+  go: () => play([880, 1175], 'triangle', .22, .1, .22),
+  win: () => play([523, 659, 784, 1047, 784, 1047, 1319], 'triangle', .22, .12, .2),
+  intro: () => play([392, 523, 659, 784, 1047], 'triangle', .22, .08, .22),
+  pop: () => play([700 + rnd(300)], 'sine', .1, .05, .07),
+};
+const midi = n => 440 * Math.pow(2, (n - 69) / 12);
+const Music = {
+  on: false, timer: null, step: 0, next: 0, STEP: 60 / 112 / 4,
+  CH: [[48, 60, 64, 67], [43, 59, 62, 67], [45, 60, 64, 69], [41, 60, 65, 69]],
+  MEL: [72, 0, 76, 79, 0, 76, 72, 0, 71, 0, 74, 79, 0, 74, 71, 0, 72, 0, 76, 81, 0, 76, 72, 0, 77, 0, 76, 72, 0, 69, 72, 0],
+  start() {
+    if (!DB.settings.music || this.on) return; const c = actx(); if (!c) return;
+    this.on = true; this.next = c.currentTime + .06;
+    musicGain.gain.cancelScheduledValues(c.currentTime); musicGain.gain.setValueAtTime(.5, c.currentTime);
+    this.timer = setInterval(() => this.sched(), 60);
+  },
+  stop() {
+    if (!this.on) return; this.on = false; clearInterval(this.timer);
+    try { musicGain.gain.setTargetAtTime(0.0001, AC.currentTime, .05); } catch (e) {}
+  },
+  sched() { while (this.next < AC.currentTime + .22) { this.note(this.step, this.next); this.next += this.STEP; this.step = (this.step + 1) % 128; } },
+  note(step, t) {
+    const bar = (step >> 4) % 4, s = step & 15, ch = this.CH[bar], second = step >= 64;
+    if (s % 8 === 0) { const o = tone(120, t, .16, 'sine', .3, musicGain); if (o) o.frequency.exponentialRampToValueAtTime(45, t + .14); }
+    if (s % 4 === 2) tone(6000 + (s % 8) * 300, t, .03, 'square', .018, musicGain);
+    if (s % 4 === 0 || s === 14) tone(midi(ch[0] - (s === 8 ? 0 : 12) + 12), t, .2, 'triangle', .16, musicGain);
+    if (s % 2 === 0) tone(midi(ch[1 + [0, 1, 2, 1, 0, 2, 1, 2][s / 2] % 3]), t, .11, 'square', .035, musicGain);
+    if (second && s % 2 === 0) { const m = this.MEL[bar * 8 + s / 2]; if (m) tone(midi(m), t, .2, 'triangle', .1, musicGain); }
+  },
+};
+
+/* Stemme som leser opp (iOS-appen har egen, ellers nettleserens) */
+const TTS_NATIVE = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.tts;
+let ttsDone = null;
+window.nativeTTSDone = () => { const f = ttsDone; ttsDone = null; if (f) f(); };
+function speak(text) {
+  return new Promise(res => {
+    let done = false;
+    const fin = () => { if (done) return; done = true; clearTimeout(to); res(); };
+    const to = setTimeout(fin, 2000 + text.length * 130);
+    try {
+      if (TTS_NATIVE) { ttsDone = fin; TTS_NATIVE.postMessage(text); }
+      else if ('speechSynthesis' in window) {
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text); u.lang = 'nb-NO'; u.rate = 1.05;
+        const v = speechSynthesis.getVoices().find(v => /^(nb|no)/i.test(v.lang)); if (v) u.voice = v;
+        u.onend = fin; u.onerror = fin; speechSynthesis.speak(u);
+      } else fin();
+    } catch (e) { fin(); }
+  });
+}
+function stopSpeak() { try { if (TTS_NATIVE) TTS_NATIVE.postMessage(''); else if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) {} }
+function speakable(p) {
+  let s = p.q.replace(/,\s*x > 0/, '')
+    .replace(/\(−(\d+)\)/g, 'minus $1').replace(/√(\d+)/g, 'kvadratroten av $1')
+    .replace(/(\d+|x)²/g, '$1 i andre').replace(/(\d+)³/g, '$1 i tredje')
+    .replace(/(\d+)([⁰¹⁴⁵⁶⁷⁸⁹]+)/g, (m, a, e) => `${a} opphøyd i ${[...e].map(ch => SUP.indexOf(ch)).join('')}`)
+    .replace(/\(/g, ' parentes ').replace(/\)/g, ' parentes slutt ')
+    .replace(/[×·]/g, ' ganger ').replace(/ : /g, ' delt på ').replace(/x\/(\d+)/g, 'x delt på $1')
+    .replace(/\+/g, ' pluss ').replace(/−/g, ' minus ').replace(/=/g, ' er lik ').replace(/%/g, ' prosent').replace(/(\d)x/g, '$1 x')
+    .replace(/\s+/g, ' ').trim();
+  return p.eq ? s + '. Hva er x?' : s;
+}
+const sayNum = n => (n < 0 ? 'minus ' + (-n) : String(n));
+
 let wakeLock = null;
 async function keepAwake(on) {
   try {
@@ -520,709 +760,802 @@ async function keepAwake(on) {
   } catch (e) {}
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && G.running) keepAwake(true); });
+function goFullscreen() {
+  try {
+    const el = document.documentElement, p = el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' }) : null;
+    if (p && p.then) p.then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('portrait').catch(() => {})).catch(() => {});
+  } catch (e) {}
+}
 
 /* =========================================================
-   4. Talegjenkjenning
+   Svar-inngang: stemme (tre varianter) og tastatur
    ========================================================= */
+const noop = () => {};
+const IN = { on: false, answer: null, heard: noop, correct: noop, wrong: noop, cmd: null, silence: null, ignoreFinalUntil: 0, token: 0, typed: '' };
+function listenFor(answer, h) {
+  clearTimeout(IN.silence);
+  Object.assign(IN, { on: true, answer, heard: h.heard || noop, correct: h.correct, wrong: h.wrong || noop, cmd: h.cmd || null, typed: '' });
+  IN.token++;
+}
+function stopListen() { IN.on = false; clearTimeout(IN.silence); }
+function gotCorrect() {
+  if (!IN.on) return;
+  IN.ignoreFinalUntil = performance.now() + 1200; clearTimeout(IN.silence);
+  const f = IN.correct; IN.on = false; f();
+}
+/* Glem det som er hørt til nå (ny oppgave, etter opplesing osv.) */
+function fresh() {
+  clearTimeout(IN.silence);
+  if (NATIVE) NATIVE.postMessage('reset');
+  else if (!Dict && Voice.rec) Voice.minIndex = Voice.len;
+}
+function checkCmd(heard) {
+  if (!IN.cmd) return false;
+  const c = /(^|\s)(pass|hopp over|vet ikke)(\s|$|[.,!?])/i.test(heard) ? 'pass' : /(^|\s)(gjenta|en gang til|si det igjen|igjen)(\s|$|[.,!?])/i.test(heard) ? 'repeat' : null;
+  if (!c) return false;
+  const f = IN.cmd; fresh(); f(c); return true;
+}
+function handleText(text, final) {
+  if (!IN.on || paused) return;
+  if (final && performance.now() < IN.ignoreFinalUntil) return;
+  const heard = String(text || '').trim();
+  clearTimeout(IN.silence);
+  if (!heard) return;
+  const nums = parseNumbers(heard);
+  if (nums.includes(IN.answer)) return gotCorrect();
+  IN.heard(heard);
+  if (checkCmd(heard)) return;
+  if (final) { if (nums.length) IN.wrong(nums); return; }
+  // Mange talemotorer (særlig iPhone) melder aldri «ferdig». En kort pause avslutter forsøket.
+  const tok = IN.token;
+  IN.silence = setTimeout(() => {
+    if (!IN.on || IN.token !== tok || paused) return;
+    handleText(heard, true);
+    if (NATIVE) NATIVE.postMessage('reset');
+  }, 1300);
+}
+function keyPress(k, disp) {
+  if (!IN.on || paused) return;
+  let t = IN.typed;
+  if (k === '⌫') t = t.slice(0, -1);
+  else if (k === '−') t = t.startsWith('-') ? t.slice(1) : '-' + t;
+  else if (t.replace('-', '').length < 6) t += k;
+  IN.typed = t; disp.textContent = t.replace('-', '−');
+  const target = String(IN.answer);
+  if (t === target) return gotCorrect();
+  if (t !== '-' && t.replace('-', '').length >= target.replace('-', '').length && t.length >= target.length) {
+    IN.wrong([Number(t)]); IN.typed = '';
+    setTimeout(() => { if (!IN.typed) disp.textContent = ''; }, 300);
+  }
+}
+const keypadHTML = () => [7, 8, 9, '⌫', 4, 5, 6, '−', 1, 2, 3, 0].map(k => `<button data-k="${k}">${k}</button>`).join('');
+
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const IN_ARTIFACT = !!(window.claude && window.claude.use);
+const NATIVE = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.speech;
+let Dict = null, dictNoLang = false;
+const canVoice = () => !!(NATIVE || Dict || (SR && !IN_ARTIFACT));
 const Voice = {
-  rec: null, wanted: false, minIndex: 0,
+  rec: null, wanted: false, minIndex: 0, len: 0,
   start() {
     if (NATIVE) { NATIVE.postMessage('start'); return; }
     if (Dict) return dictStart();
-    if (IN_ARTIFACT) return micDenied();
-    if (!SR) return;
+    if (IN_ARTIFACT || !SR) return micDenied();
     this.wanted = true;
     if (!this.rec) {
       const r = new SR();
       r.lang = 'nb-NO'; r.continuous = true; r.interimResults = true; r.maxAlternatives = 5;
-      r.onstart = () => { this.minIndex = 0; setMic(true); };
+      r.onstart = () => { this.minIndex = 0; this.len = 0; setMic(true); };
       r.onend = () => { setMic(false); if (this.wanted) setTimeout(() => this._go(), 120); };
-      r.onerror = e => {
-        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-          this.wanted = false;
-          micDenied();
-        }
-      };
-      r.onresult = e => onSpeech(e);
+      r.onerror = e => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { this.wanted = false; micDenied(); } };
+      r.onresult = onSpeech;
       this.rec = r;
     }
     this._go();
   },
   _go() { try { this.rec.start(); } catch (e) {} },
-  stop() { if (NATIVE) { NATIVE.postMessage('stop'); setMic(false); return; } if (Dict) { Dict.stop().catch(() => {}); setMic(false); return; } this.wanted = false; if (this.rec) try { this.rec.abort(); } catch (e) {} setMic(false); },
+  stop() {
+    if (NATIVE) { NATIVE.postMessage('stop'); setMic(false); return; }
+    if (Dict) { Dict.stop().catch(noop); setMic(false); return; }
+    this.wanted = false; if (this.rec) try { this.rec.abort(); } catch (e) {} setMic(false);
+  },
+  again() {   // «øre»-knappen: start lyttingen helt på nytt
+    clearTimeout(IN.silence);
+    if (NATIVE) NATIVE.postMessage('reset');
+    else if (Dict) { Dict.stop().catch(noop); dictStart(); }
+    else if (this.rec) { try { this.rec.abort(); } catch (e) {} }
+  },
 };
-/* Claude-artifakt: plattformens diktering (fungerer i Chrome-nettleser) */
-let Dict = null, dictNoLang = false;
-const IN_ARTIFACT = !!(window.claude && window.claude.use);
-/* iOS-appen: innebygd talegjenkjenning via WKWebView */
-const NATIVE = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.speech;
+function onSpeech(e) {
+  Voice.len = e.results.length;
+  if (!IN.on || paused) { Voice.minIndex = e.results.length; return; }
+  for (let i = Math.max(Voice.minIndex, e.resultIndex); i < e.results.length; i++) {
+    const res = e.results[i], heard = res[0].transcript.trim();
+    for (let j = 0; j < res.length; j++) if (parseNumbers(res[j].transcript).includes(IN.answer)) { Voice.minIndex = i + 1; return gotCorrect(); }
+    if (heard) IN.heard(heard);
+    if (checkCmd(heard)) { Voice.minIndex = i + 1; return; }
+    if (res.isFinal) { Voice.minIndex = i + 1; const nums = parseNumbers(heard); if (nums.length) IN.wrong(nums); }
+  }
+}
 window.nativeSpeech = (text, final, alt) => {
   if (!alt) return handleText(text, final);
-  if (G.running && !G.paused && G.awaiting && parseNumbers(text).includes(G.players[G.turn].cur.a)) correct(G.turn, text);
+  if (IN.on && !paused && parseNumbers(text).includes(IN.answer)) gotCorrect();
 };
-window.nativeSpeechState = st => {
-  if (st === 'listening') setMic(true);
-  else if (st === 'denied') micDenied();
-  else if (st === 'idle') setMic(false);
-  else micHint();
-};
-const NO_VOICE_HERE = 'Stemme virker ikke i denne visningen (Claude-appen eller Safari på iPhone). Åpne lenken i Chrome på Android, eller bruk tastatur.';
+window.nativeSpeechState = st => { if (st === 'listening') setMic(true); else if (st === 'denied') micDenied(); else if (st === 'idle') setMic(false); else micHint(); };
 function dictStart() {
   Dict.start(dictNoLang ? undefined : { language: 'nb' }).catch(err => {
     const c = err && err.code;
     if (c === 'not_granted') return micDenied();
-    if (c === 'unavailable' && !dictNoLang) { dictNoLang = true; }
+    if (c === 'unavailable') dictNoLang = true;
     micHint();
   });
 }
-function micHint() { if (G.running && !G.paused && G.mode === 'voice') { setMic(false); $('#micTxt').textContent = '🎤 Trykk her for å lytte'; } }
 function setupDict(d) {
   Dict = d;
   d.onPartial(({ text }) => handleText(text, false));
   d.onFinal(({ text }) => handleText(text, true));
   d.onState(({ state, reason }) => {
     setMic(state === 'listening' || state === 'starting');
-    if (state === 'idle' && reason && reason !== 'stopped') {
-      if (reason === 'not_granted') micDenied(); else micHint();
-    }
+    if (state === 'idle' && reason && reason !== 'stopped') { if (reason === 'not_granted') micDenied(); else micHint(); }
   });
-  $('#srWarn').classList.add('hidden');
-  if (!SR) document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === 'voice'));
 }
-function noVoiceHere() {
-  $('#srWarn').textContent = NO_VOICE_HERE; $('#srWarn').classList.remove('hidden');
-  document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === 'keys'));
-}
-try { if (IN_ARTIFACT) window.claude.use('dictation').then(d => { if (d) setupDict(d); else noVoiceHere(); }).catch(noVoiceHere); } catch (e) {}
-
-function handleText(text, final) {
-  if (!(G.running && !G.paused && G.awaiting)) return;
-  if (final && performance.now() < (G.ignoreFinalUntil || 0)) return;
-  const p = G.players[G.turn], heard = String(text || '').trim();
-  clearTimeout(G.silence);
-  if (!heard) return;
-  showHeard(G.turn, `«${heard}»`, '');
-  const nums = parseNumbers(heard);
-  if (nums.includes(p.cur.a)) return correct(G.turn, heard);
-  if (final) {
-    if (nums.length) wrong(G.turn, `Hørte ${nums.map(fmt).join(', ')} – ikke riktig, prøv igjen`);
-    return;
-  }
-  // Mange talemotorer (særlig iPhone) melder aldri «ferdig». En kort pause avslutter forsøket.
-  const turn = G.turn, cur = p.cur;
-  G.silence = setTimeout(() => {
-    if (!G.awaiting || G.paused || G.turn !== turn || G.players[turn].cur !== cur) return;
-    handleText(heard, true);
-    if (NATIVE) NATIVE.postMessage('reset');   // start et nytt, rent forsøk
-  }, 1300);
-}
-
+try { if (IN_ARTIFACT) window.claude.use('dictation').then(d => { if (d) setupDict(d); }).catch(noop); } catch (e) {}
 function setMic(on) {
-  $('#mic').classList.toggle('on', on);
-  $('#micTxt').textContent = on ? 'Lytter …' : (G.mode === 'keys' ? 'Tastatur' : 'Mikrofon av');
+  $$('.mic').forEach(m => m.classList.toggle('on', on));
+  $$('.mictxt').forEach(t => t.textContent = on ? 'Lytter' : (G.input === 'keys' ? 'Tastatur' : 'Mikrofon av'));
 }
-
-function onSpeech(e) {
-  const p = G.running && !G.paused && G.awaiting ? G.players[G.turn] : null;
-  if (!p) { Voice.minIndex = e.results.length; return; }   // ignorer prat mellom oppgavene
-  for (let i = Math.max(Voice.minIndex, e.resultIndex); i < e.results.length; i++) {
-    const res = e.results[i];
-    const heard = res[0].transcript.trim();
-    showHeard(G.turn, heard ? `«${heard}»` : '', '');
-    for (let j = 0; j < res.length; j++) {
-      if (parseNumbers(res[j].transcript).includes(p.cur.a)) {
-        Voice.minIndex = i + 1;
-        correct(G.turn, heard);
-        return;
-      }
-    }
-    if (res.isFinal) {
-      Voice.minIndex = i + 1;
-      const nums = parseNumbers(heard);
-      if (nums.length) wrong(G.turn, `«${heard}» – ikke riktig`);
-    }
-  }
+function micHint() { if (G.running && !paused && G.input === 'voice') { setMic(false); $$('.mictxt').forEach(t => t.textContent = 'Trykk for å lytte'); } }
+function micDenied() {
+  G.input = 'keys'; setMic(false);
+  $$('.mictxt').forEach(t => t.textContent = NATIVE ? 'Gi tilgang i Innstillinger' : 'Bruk tastatur');
+  if (G.running && G.rerender) G.rerender();
 }
+$$('.mic').forEach(m => m.onclick = () => { if (G.running && !paused && G.input === 'voice') Voice.start(); });
 
 /* =========================================================
-   5. Spillogikk
+   Navigasjon og felles
    ========================================================= */
-const $ = s => document.querySelector(s);
-const halves = [$('.half.p1'), $('.half.p2')];
-const G = { players: [], turn: 0, count: 10, mode: 'voice', running: false, paused: false, awaiting: false, starter: 0, timer: null };
-
-function halfTemplate() {
-  return `
-    <div class="hud"><span class="name"></span><div class="prog"></div><span class="clock">0,0 s</span></div>
-    <div class="stage">
-      <div class="status"></div>
-      <div class="problem"></div>
-      <div class="heard"></div>
-      <div class="typed hidden"></div>
-      <button class="buzzer">BUZZ!</button>
-    </div>
-    <div class="keypad hidden">
-      ${[7, 8, 9, '⌫', 4, 5, 6, '−', 1, 2, 3, 0].map(k => `<button data-k="${k}">${k}</button>`).join('')}
-    </div>
-    <div class="actions">
-      <button class="ear">👂 Hør på nytt</button>
-      <button class="skip">⏭ Hopp over (+5 s)</button>
-      <button class="approve">✓ Godkjenn motstanderens svar</button>
-    </div>
-    <div class="overlay hidden"></div>`;
+const GAME_SCREENS = ['duel', 'rr'];
+let curScreen = 'intro';
+function show(id) {
+  $$('.screen').forEach(s => s.classList.toggle('show', s.id === id));
+  document.body.classList.toggle('ingame', GAME_SCREENS.includes(id));
+  curScreen = id;
+  if (id !== 'intro' && !GAME_SCREENS.includes(id)) Music.start(); else Music.stop();
+  const s = $('#' + id); if (s) s.scrollTop = 0;
 }
-halves.forEach((h, i) => {
-  h.innerHTML = halfTemplate();
-  h.querySelector('.skip').onclick = () => skip(i);
-  h.querySelector('.ear').onclick = () => listenAgain(i);
-  h.querySelector('.buzzer').addEventListener('pointerdown', e => { e.preventDefault(); buzz(i); });
-  h.querySelector('.approve').onclick = () => { if (G.turn !== i && G.awaiting) correct(G.turn, 'godkjent av motstander'); };
-  h.querySelectorAll('.keypad button').forEach(b => b.onclick = () => keyPress(i, b.dataset.k));
+document.addEventListener('click', e => {
+  const go = e.target.closest('[data-go]');
+  if (go) { sfx.click(); const id = go.dataset.go; RENDER[id] && RENDER[id](); show(id); }
 });
-const q = (i, sel) => halves[i].querySelector(sel);
-
-function showHeard(i, text, cls) {
-  const el = q(i, '.heard'); el.textContent = text; el.className = 'heard ' + (cls || '');
-}
-
-function render() {
-  $('#game').classList.toggle('keys', G.mode === 'keys');
-  if (G.game === 'buzz') return renderBuzz();
-  G.players.forEach((p, i) => {
-    const h = halves[i], active = G.turn === i && G.running;
-    h.classList.toggle('active', active);
-    q(i, '.name').innerHTML = avatarHTML(p.av) + ' ' + esc(p.name);
-    q(i, '.prog').innerHTML = Array.from({ length: G.count }, (_, k) =>
-      `<span class="dot ${p.log[k] || ''} ${k === p.done && active ? 'now' : ''}"></span>`).join('');
-    q(i, '.clock').textContent = fmtTime(p.time + (active && G.awaiting && !G.paused ? performance.now() - G.turnStart : 0));
-    const prob = q(i, '.problem'), st = q(i, '.status');
-    const keys = G.mode === 'keys';
-    q(i, '.keypad').classList.toggle('hidden', !keys);
-    q(i, '.typed').classList.toggle('hidden', !keys || !active);
-    q(i, '.ear').classList.toggle('hidden', keys);
-    if (p.done >= G.count) {
-      st.textContent = 'Ferdig! 🎉'; prob.textContent = ''; showHeard(i, '', '');
-    } else if (active) {
-      st.textContent = !G.awaiting ? '' : keys ? 'Din tur! Tast svaret' : 'Din tur! Si svaret høyt 🎤';
-      setProblem(prob, p.cur);
-    } else {
-      const o = G.players[G.turn];
-      st.textContent = G.awaiting ? `Vent – ${o.name} regner:` : `${o.name} er ferdig med stykket`;
-      if (o.cur && o.done < G.count) { setProblem(prob, o.cur); showHeard(i, G.showAns ? `Fasit: ${fmt(o.cur.a)}` : '', ''); }
-    }
-  });
-}
+function gp(p) { return { id: p.id, name: p.name, av: p.av, grade: p.grade, done: 0, correct: 0, skipped: 0, wrong: 0, time: 0, log: [], cur: null, points: 0, penalties: 0, streak: 0, maxStreak: 0 }; }
 function setProblem(el, p) {
-  const text = p.eq ? `${p.q}` : `${p.q} = `;
-  el.style.setProperty('--len', Math.max(4, text.length + (p.eq ? 0 : 1)));
+  const text = p.eq ? p.q : p.q + ' = ?';
+  el.style.setProperty('--len', Math.max(4, text.length));
   el.innerHTML = p.eq ? `${esc(p.q)}<div style="font-size:.5em" class="q">x = ?</div>` : `${esc(p.q)} = <span class="q">?</span>`;
 }
-const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-const fmtTime = ms => (ms / 1000).toFixed(1).replace('.', ',') + ' s';
-
-function startGame() {
-  G.count = +$('#countSeg .on').dataset.v;
-  G.mode = $('#modeSeg .on').dataset.v;
-  G.showAns = $('#ansSeg .on').dataset.v === 'show';
-  G.game = $('#gameSeg .on').dataset.v;
-  G.ops = [...document.querySelectorAll('#opsChips .on')].map(b => b.dataset.v);
-  if ((!SR || IN_ARTIFACT) && !Dict && !NATIVE) G.mode = 'keys';
-  G.players = [0, 1].map(i => ({
-    name: ($('#n' + (i + 1)).value.trim() || `Spiller ${i + 1}`),
-    grade: +$('#g' + (G.game === 'buzz' ? 1 : i + 1)).value,
-    done: 0, correct: 0, skipped: 0, wrong: 0, time: 0, log: [], cur: null, typed: '', points: 0, penalties: 0,
-    av: AV[i],
-  }));
-  G.players.forEach(p => p.cur = makeProblem(p.grade));
-  G.turn = G.starter; G.running = true; G.paused = false; G.awaiting = false;
-  try { localStorage.setItem('mattekamp', JSON.stringify({ n1: $('#n1').value, n2: $('#n2').value, g1: $('#g1').value, g2: $('#g2').value, c: G.count, m: G.mode, f: G.showAns ? 'show' : 'hide', gm: G.game, ops: G.ops, av: AV })); } catch (e) {}
-
-  G.qIndex = 0; G.buzzer = -1; G.out = [false, false]; G.between = false;
-  $('#game').classList.toggle('buzz', G.game === 'buzz');
-  $('#game').classList.remove('answering');
-  $('#setup').classList.add('hidden'); $('#game').classList.remove('hidden');
-  halves.forEach(h => h.querySelector('.overlay').classList.add('hidden'));
-  goFullscreen();
-  keepAwake(true);
-  beep([1]); // låser opp lyd på iOS
-  if (G.mode === 'voice') Voice.start(); else setMic(false);
-  render();
-  countdown(3);
+function award(g, won) {
+  const p = prof(g.id); if (!p) return 0;
+  const xp = g.correct * 10 + (won ? 50 : 0);
+  p.xp = (p.xp || 0) + xp; return xp;
 }
-
-function countdown(n) {
-  halves.forEach((h, i) => {
-    const o = h.querySelector('.overlay');
-    o.classList.remove('hidden');
-    const sub = G.game === 'buzz' ? 'Fingeren klar på buzzeren!' : `${esc(G.players[G.turn].name)} starter`;
-    o.innerHTML = `<div class="big">${n || 'Kjør!'}</div><div class="stats">${sub}</div>`;
-  });
-  if (n > 0) { beep([440], .1); setTimeout(() => G.running && countdown(n - 1), 800); }
-  else { beep([880], .2); setTimeout(() => { halves.forEach(h => h.querySelector('.overlay').classList.add('hidden')); G.game === 'buzz' ? beginQuestion() : beginTurn(); }, 450); }
+function addHistory(mode, count, rows) {
+  DB.history.unshift({ t: Date.now(), mode, count, rows });
+  DB.history = DB.history.slice(0, 500); save();
 }
-
-function beginTurn() {
-  if (!G.running) return;
-  const p = G.players[G.turn];
-  if (p.needNew) { p.cur = makeProblem(p.grade, p.cur.q); p.needNew = false; }
-  p.typed = ''; q(G.turn, '.typed').textContent = '';
-  showHeard(G.turn, '', '');
-  G.awaiting = true;
-  G.turnStart = performance.now();
-  render();
-  clearInterval(G.timer);
-  G.timer = setInterval(() => { if (!G.paused && G.awaiting) q(G.turn, '.clock').textContent = fmtTime(p.time + performance.now() - G.turnStart); }, 100);
+function confetti() {
+  const c = $('#fx'), x = c.getContext('2d'); c.width = innerWidth; c.height = innerHeight; c.style.display = 'block';
+  const cols = ['#ffc83d', '#38d6ff', '#ff5fa2', '#3ddc84', '#8f7bff', '#ffffff'];
+  const P = Array.from({ length: 130 }, () => ({ x: Math.random() * c.width, y: -20 - Math.random() * c.height * .6, vx: (Math.random() - .5) * 4, vy: 2 + Math.random() * 4, r: 4 + Math.random() * 6, c: cols[rnd(6)], a: Math.random() * 6, va: (Math.random() - .5) * .3 }));
+  const t0 = performance.now();
+  (function f() {
+    x.clearRect(0, 0, c.width, c.height);
+    P.forEach(p => { p.x += p.vx; p.y += p.vy; p.a += p.va; x.save(); x.translate(p.x, p.y); x.rotate(p.a); x.fillStyle = p.c; x.fillRect(-p.r, -p.r / 2, p.r * 2, p.r); x.restore(); });
+    if (performance.now() - t0 < 3600) requestAnimationFrame(f); else c.style.display = 'none';
+  })();
 }
-function finishTurn(i, outcome, penalty = 0) {
-  const p = G.players[i];
-  G.awaiting = false;
-  clearInterval(G.timer);
-  p.time += performance.now() - G.turnStart + penalty;
-  if (NATIVE) NATIVE.postMessage('reset');
-  p.log[p.done] = outcome;
-  p.done++;
-  p.needNew = p.done < G.count;   // neste stykke trekkes først når det blir din tur igjen
+function countdown(n, sub, then) {
+  const c = $('#count');
+  if (!G.running) { c.classList.remove('show'); return; }
+  c.classList.add('show'); c.querySelector('span').textContent = sub;
+  const b = c.querySelector('b'); b.textContent = n || 'Kjør!'; b.style.animation = 'none'; void b.offsetWidth; b.style.animation = '';
+  if (n > 0) { sfx.count(); setTimeout(() => countdown(n - 1, sub, then), 800); }
+  else { sfx.go(); setTimeout(() => { c.classList.remove('show'); if (G.running) then(); }, 450); }
 }
-
-function correct(i, heard) {
-  if (!G.awaiting || G.turn !== i) return;
-  if (G.game === 'buzz') return buzzCorrect(i);
-  const ans = G.players[i].cur.a;
-  G.ignoreFinalUntil = performance.now() + 1200;
-  clearTimeout(G.silence);
-  finishTurn(i, 'ok');
-  G.players[i].correct++;
-  beep([660, 990]);
-  halves[i].classList.add('flash-good');
-  render();
-  showHeard(i, `✓ ${fmt(ans)} er riktig!`, 'good');
-  setTimeout(() => { halves[i].classList.remove('flash-good'); nextTurn(); }, 750);
-}
-
-function wrong(i, text) {
-  G.players[i].wrong++;
-  showHeard(i, text, 'bad');
-  beep([220], .15);
-  const h = halves[i]; h.classList.remove('flash-bad'); void h.offsetWidth; h.classList.add('flash-bad');
-}
-
-function skip(i) {
-  if (!G.awaiting || G.turn !== i) return;
-  const ans = G.players[i].cur.a;
-  finishTurn(i, 'skip', 5000);
-  G.players[i].skipped++;
-  render();
-  showHeard(i, `Svaret var ${fmt(ans)}  (+5 s)`, 'bad');
-  setTimeout(nextTurn, 1400);
-}
-
-function nextTurn() {
-  if (!G.running) return;
-  const [a, b] = G.players;
-  if (a.done >= G.count && b.done >= G.count) return finish();
-  const other = 1 - G.turn;
-  if (G.players[other].done < G.count) G.turn = other;
-  beginTurn();
-}
-
-function keyPress(i, k) {
-  if (!G.awaiting || G.turn !== i || G.paused) return;
-  const p = G.players[i];
-  if (k === '⌫') p.typed = p.typed.slice(0, -1);
-  else if (k === '−') p.typed = p.typed.startsWith('-') ? p.typed.slice(1) : '-' + p.typed;
-  else if (p.typed.replace('-', '').length < 6) p.typed += k;
-  q(i, '.typed').textContent = p.typed.replace('-', '−') || '';
-  const target = String(p.cur.a);
-  if (p.typed === target) return correct(i, p.typed);
-  if (p.typed.length >= target.length && p.typed.replace('-', '').length >= target.replace('-', '').length && p.typed !== '-') {
-    wrong(i, `${p.typed.replace('-', '−')} – ikke riktig`);
-    p.typed = '';
-    setTimeout(() => { q(i, '.typed').textContent = ''; }, 300);
-  }
-}
-
-function finish() {
-  if (G.game === 'buzz') return finishBuzz();
-  G.running = false; G.awaiting = false;
-  clearInterval(G.timer);
-  Voice.stop(); keepAwake(false);
-  render();
-  const [a, b] = G.players;
-  const diff = Math.abs(a.time - b.time);
-  const winner = diff < 50 ? -1 : (a.time < b.time ? 0 : 1);
-  saveMatch(winner);
-  beep([523, 659, 784, 1047], .15);
-  halves.forEach((h, i) => {
-    const me = G.players[i], o = h.querySelector('.overlay');
-    const title = winner === -1 ? 'Uavgjort! 🤝' : winner === i ? 'Du vant! 🏆' : `${esc(G.players[winner].name)} vant`;
-    o.innerHTML = `
-      ${avatarHTML(me.av)}
-      <h2>${title}</h2>
-      ${winner !== -1 ? `<div class="stats">${winner === i ? 'Du var' : esc(G.players[winner].name) + ' var'} <b>${(diff / 1000).toFixed(1).replace('.', ',')} s</b> raskere</div>` : ''}
-      <div class="stats">
-        Din tid: <b>${fmtTime(me.time)}</b> · snitt <b>${fmtTime(me.time / G.count)}</b><br>
-        Riktige: <b>${me.correct}</b> · Hoppet over: <b>${me.skipped}</b> · Feil forsøk: <b>${me.wrong}</b><br>
-        Nivå: ${GRADES[me.grade].name}
-      </div>
-      <div style="display:flex;gap:10px;margin-top:6px">
-        <button class="primary again">↻ Spill igjen</button><button class="menu">Meny</button>
-      </div>`;
-    o.classList.remove('hidden');
-    o.querySelector('.again').onclick = () => { G.starter = 1 - G.starter; startGame(); };
-    o.querySelector('.menu').onclick = toMenu;
-  });
-}
-
-function toMenu() {
-  G.running = false; G.awaiting = false; G.paused = false;
-  clearTimeout(G.qTimer); clearTimeout(G.buzzTimer); clearTimeout(G.silence);
-  clearInterval(G.timer); Voice.stop(); keepAwake(false);
+function beginGame(screen) {
+  paused = false; G.running = true;
   $('#pause').classList.add('hidden');
-  $('#game').classList.add('hidden'); $('#setup').classList.remove('hidden');
-  try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
+  show(screen); goFullscreen(); keepAwake(true); actx();
+  if (G.input === 'voice') Voice.start(); else setMic(false);
 }
-
-function pause(on) {
+function endGame() {
+  G.running = false; stopListen(); clearTimers(); Voice.stop(); stopSpeak(); keepAwake(false);
+  $('#count').classList.remove('show');
+}
+function toMenu() {
+  endGame(); paused = false; $('#pause').classList.add('hidden');
+  try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
+  RENDER.home(); show('home');
+}
+const T = {};   // alle spill-timere, så de kan ryddes samlet
+function clearTimers() { ['dClock', 'dBuzz', 'dQ', 'rTimer', 'rTick'].forEach(k => { clearTimeout(T[k]); clearInterval(T[k]); }); clearTimeout(IN.silence); }
+$$('[data-pause]').forEach(b => b.onclick = () => pauseGame(true));
+$('#resumeBtn').onclick = () => pauseGame(false);
+$('#quitBtn').onclick = toMenu;
+function pauseGame(on) {
   if (!G.running) return;
-  if (on && !G.paused) {
-    G.paused = true; G.pausedAt = performance.now(); Voice.stop(); $('#pause').classList.remove('hidden');
-    if (G.game === 'buzz') { clearTimeout(G.buzzTimer); clearTimeout(G.qTimer); clearTimeout(G.silence); }
-  } else if (!on && G.paused) {
-    G.paused = false; G.turnStart += performance.now() - G.pausedAt;
-    $('#pause').classList.add('hidden');
-    if (G.mode === 'voice') Voice.start();
-    if (G.game === 'buzz' && !G.between) {
-      if (G.buzzer >= 0) startAnswerWindow(G.buzzer);   // ny full svartid etter pause
-      else armQuestionTimer();
-    }
+  if (on && !paused) {
+    paused = true; pausedAt = performance.now(); Voice.stop(); stopSpeak();
+    if (G.mode === 'duel') dPause(); else rrPause();
+    $('#pause').classList.remove('hidden');
+  } else if (!on && paused) {
+    paused = false; $('#pause').classList.add('hidden');
+    if (G.input === 'voice') Voice.start();
+    if (G.mode === 'duel') dResume(performance.now() - pausedAt); else rrResume();
   }
 }
 
-/* ---------- Øre: lytt på nytt (fjerner surreprat) ---------- */
-function listenAgain(i) {
-  if (!G.awaiting || G.turn !== i || G.paused) return;
-  clearTimeout(G.silence);
-  showHeard(i, '👂 Lytter på nytt …', '');
-  if (NATIVE) NATIVE.postMessage('reset');
-  else if (Dict) { Dict.stop().catch(() => {}); dictStart(); }
-  else if (Voice.rec) { try { Voice.rec.abort(); } catch (e) {} }   // starter av seg selv igjen
-}
-
 /* =========================================================
-   Buzzer-modus: samme stykke til begge, først til buzzeren
+   DUELL: annenhver tur og buzzer (to halvdeler)
    ========================================================= */
-const BUZZ_SECONDS = 3;
-const BUZZ_GRACE = 700;      // talegjenkjenningen trenger litt tid etter at du har sagt svaret
-const QUESTION_TIMEOUT = 20000;
+const halves = [$('#duel .half.p1'), $('#duel .half.p2')];
+const D = { starter: 1 };
+halves.forEach((h, i) => {
+  h.innerHTML = `
+    <div class="hud"><span class="name"></span><div class="prog"></div><span class="clock"></span></div>
+    <div class="stage"><div class="status"></div><div class="problem"></div><div class="heard"></div><div class="typed hidden"></div><button class="buzzer">BUZZ!</button></div>
+    <div class="keypad hidden">${keypadHTML()}</div>
+    <div class="actions"><button class="gbtn ear">👂 Hør på nytt</button><button class="gbtn skip">⏭ Hopp over (+5 s)</button><button class="gbtn approve">✓ Godkjenn motstanderens svar</button></div>
+    <div class="overlay hidden"></div>`;
+  h.querySelector('.skip').onclick = () => dSkip(i);
+  h.querySelector('.ear').onclick = () => { if (IN.on && D.turn === i && !paused) { Voice.again(); dHeard(i, '👂 Lytter på nytt …', ''); } };
+  h.querySelector('.approve').onclick = () => { if (D.turn !== i && IN.on) gotCorrect(); };
+  h.querySelector('.buzzer').addEventListener('pointerdown', e => { e.preventDefault(); dBuzz(i); });
+  h.querySelectorAll('.keypad button').forEach(b => b.onclick = () => { if (D.turn === i) keyPress(b.dataset.k, dq(i, '.typed')); });
+});
+const dq = (i, sel) => halves[i].querySelector(sel);
+function dHeard(i, text, cls) { const el = dq(i, '.heard'); el.textContent = text; el.className = 'heard ' + (cls || ''); }
+const BUZZ_SECONDS = 3, BUZZ_GRACE = 700, QUESTION_TIMEOUT = 20000;
 
-function beginQuestion() {
+function startDuel(profs, variant, count, grade) {
+  G.mode = 'duel'; G.rerender = dRender;
+  Object.assign(D, { variant, count, players: profs.map(gp), starter: 1 - D.starter, awaiting: false, qIndex: 0, buzzer: -1, out: [false, false], between: false });
+  D.turn = D.starter;
+  if (variant === 'buzz') D.players.forEach(p => p.grade = grade); else D.players.forEach(p => p.cur = makeProblem(p.grade));
+  $('#duel').classList.toggle('buzz', variant === 'buzz'); $('#duel').classList.remove('answering');
+  halves.forEach(h => { h.querySelector('.overlay').classList.add('hidden'); h.classList.remove('flash-good'); });
+  beginGame('duel'); dRender();
+  dCountdown(3);
+}
+function dCountdown(n) {
   if (!G.running) return;
-  if (G.qIndex >= G.count) return finish();
-  G.qIndex++;
-  const prev = G.players[0].cur && G.players[0].cur.q;
-  const prob = makeProblem(G.players[0].grade, prev);
-  G.players.forEach(p => { p.cur = prob; p.typed = ''; });
-  G.out = [false, false]; G.buzzer = -1; G.awaiting = false; G.between = false;
-  clearTimeout(G.silence);
-  if (NATIVE) NATIVE.postMessage('reset');
-  halves.forEach((h, i) => { showHeard(i, '', ''); q(i, '.typed').textContent = ''; });
-  G.qStart = performance.now(); G.qLeft = QUESTION_TIMEOUT;
-  armQuestionTimer();
-  renderBuzz();
+  halves.forEach(h => {
+    const o = h.querySelector('.overlay'); o.classList.remove('hidden');
+    o.innerHTML = `<div class="big">${n || 'Kjør!'}</div><div class="stats">${D.variant === 'buzz' ? 'Fingeren klar på buzzeren!' : esc(D.players[D.turn].name) + ' starter'}</div>`;
+  });
+  if (n > 0) { sfx.count(); setTimeout(() => dCountdown(n - 1), 800); }
+  else { sfx.go(); setTimeout(() => { if (!G.running) return; halves.forEach(h => h.querySelector('.overlay').classList.add('hidden')); D.variant === 'buzz' ? dQuestion() : dTurn(); }, 450); }
 }
-function armQuestionTimer() {
-  clearTimeout(G.qTimer);
-  G.qTimer = setTimeout(() => endQuestion(-1, 'Ingen svarte.'), G.qLeft || QUESTION_TIMEOUT);
-  G.qArmedAt = performance.now();
+function dListen(i, onOk) {
+  listenFor(D.players[i].cur.a, {
+    heard: t => dHeard(i, `«${t}»`, ''),
+    correct: onOk,
+    wrong: nums => { D.players[i].wrong++; dHeard(i, `Hørte ${nums.map(fmt).join(', ')} – ikke riktig`, 'bad'); sfx.bad(); const h = halves[i]; h.classList.remove('flash-bad'); void h.offsetWidth; h.classList.add('flash-bad'); },
+  });
+  dq(i, '.typed').textContent = '';
 }
-function buzz(i) {
-  if (!G.running || G.paused || G.between || G.buzzer >= 0 || G.out[i] || G.qIndex === 0) return;
-  G.qLeft = Math.max(5000, (G.qLeft || QUESTION_TIMEOUT) - (performance.now() - G.qArmedAt));
-  clearTimeout(G.qTimer);
-  G.buzzer = i; G.turn = i;
-  G.players[i].typed = ''; q(i, '.typed').textContent = '';
-  if (NATIVE) NATIVE.postMessage('reset');           // bare det som sies etter buzzet teller
-  beep([523, 784], .1);
-  showHeard(i, '', ''); showHeard(1 - i, '', '');
-  startAnswerWindow(i);
+function dRender() {
+  $('#duel').classList.toggle('keys', G.input === 'keys');
+  if (D.variant === 'buzz') return dRenderBuzz();
+  const keys = G.input === 'keys';
+  D.players.forEach((p, i) => {
+    const h = halves[i], active = D.turn === i && G.running;
+    h.classList.toggle('active', active); h.classList.remove('out');
+    dq(i, '.name').innerHTML = av(p.av) + ' ' + esc(p.name);
+    dq(i, '.prog').innerHTML = Array.from({ length: D.count }, (_, k) => `<span class="dot ${p.log[k] || ''} ${k === p.done && active ? 'now' : ''}"></span>`).join('');
+    dq(i, '.clock').textContent = fmtTime(p.time + (active && D.awaiting && !paused ? performance.now() - D.turnStart : 0));
+    dq(i, '.keypad').classList.toggle('hidden', !keys);
+    dq(i, '.typed').classList.toggle('hidden', !keys || !active);
+    dq(i, '.ear').classList.toggle('hidden', keys);
+    const prob = dq(i, '.problem'), st = dq(i, '.status');
+    if (p.done >= D.count) { st.textContent = 'Ferdig! 🎉'; prob.textContent = ''; dHeard(i, '', ''); }
+    else if (active) { st.textContent = !D.awaiting ? '' : keys ? 'Din tur! Tast svaret' : 'Din tur! Si svaret høyt 🎤'; setProblem(prob, p.cur); }
+    else {
+      const o = D.players[D.turn];
+      st.textContent = D.awaiting ? `Vent – ${o.name} regner:` : `${o.name} er ferdig med stykket`;
+      if (o.cur && o.done < D.count) { setProblem(prob, o.cur); dHeard(i, DB.settings.showAns ? `Fasit: ${fmt(o.cur.a)}` : '', ''); }
+    }
+  });
 }
-function startAnswerWindow(i) {
-  clearTimeout(G.buzzTimer); clearInterval(G.timer); clearTimeout(G.silence);
-  G.awaiting = true;
-  G.buzzAt = performance.now();
-  G.buzzTimer = setTimeout(() => buzzFail(i), BUZZ_SECONDS * 1000 + BUZZ_GRACE);
-  G.timer = setInterval(() => {
-    const left = Math.max(0, BUZZ_SECONDS - (performance.now() - G.buzzAt) / 1000);
-    const c = q(i, '.clock'); c.textContent = left.toFixed(1).replace('.', ',') + ' s'; c.classList.toggle('hurry', left < 1.01);
+function dTurn() {
+  if (!G.running) return;
+  const i = D.turn, p = D.players[i];
+  if (p.needNew) { p.cur = makeProblem(p.grade, p.cur.q); p.needNew = false; }
+  dHeard(i, '', ''); fresh();
+  D.awaiting = true; D.turnStart = performance.now();
+  dListen(i, () => dCorrect(i));
+  dRender();
+  clearInterval(T.dClock);
+  T.dClock = setInterval(() => { if (!paused && D.awaiting) dq(i, '.clock').textContent = fmtTime(p.time + performance.now() - D.turnStart); }, 100);
+}
+function dFinishTurn(i, outcome, penalty = 0) {
+  const p = D.players[i];
+  D.awaiting = false; stopListen(); clearInterval(T.dClock);
+  p.time += performance.now() - D.turnStart + penalty;
+  p.log[p.done] = outcome; p.done++; p.needNew = p.done < D.count;
+}
+function dCorrect(i) {
+  const ans = D.players[i].cur.a;
+  dFinishTurn(i, 'ok'); D.players[i].correct++;
+  sfx.ok(); halves[i].classList.add('flash-good'); dRender();
+  dHeard(i, `✓ ${fmt(ans)} er riktig!`, 'good');
+  setTimeout(() => { halves[i].classList.remove('flash-good'); dNext(); }, 750);
+}
+function dSkip(i) {
+  if (!D.awaiting || D.turn !== i || D.variant === 'buzz' || paused) return;
+  const ans = D.players[i].cur.a;
+  dFinishTurn(i, 'skip', 5000); D.players[i].skipped++;
+  dRender(); dHeard(i, `Svaret var ${fmt(ans)}  (+5 s)`, 'bad');
+  setTimeout(dNext, 1400);
+}
+function dNext() {
+  if (!G.running) return;
+  const [a, b] = D.players;
+  if (a.done >= D.count && b.done >= D.count) return dFinish();
+  if (D.players[1 - D.turn].done < D.count) D.turn = 1 - D.turn;
+  dTurn();
+}
+/* --- Buzzer --- */
+function dQuestion() {
+  if (!G.running) return;
+  if (D.qIndex >= D.count) return dFinish();
+  D.qIndex++;
+  const prob = makeProblem(D.players[0].grade, D.players[0].cur && D.players[0].cur.q);
+  D.players.forEach(p => p.cur = prob);
+  Object.assign(D, { out: [false, false], buzzer: -1, awaiting: false, between: false, qLeft: QUESTION_TIMEOUT });
+  stopListen(); fresh();
+  halves.forEach((h, i) => { dHeard(i, '', ''); dq(i, '.typed').textContent = ''; });
+  dArmQ(); dRenderBuzz();
+}
+function dArmQ() { clearTimeout(T.dQ); T.dQ = setTimeout(() => dEndQ(-1, 'Ingen svarte.'), D.qLeft); D.qArmedAt = performance.now(); }
+function dBuzz(i) {
+  if (!G.running || paused || D.variant !== 'buzz' || D.between || D.buzzer >= 0 || D.out[i] || !D.qIndex) return;
+  D.qLeft = Math.max(5000, D.qLeft - (performance.now() - D.qArmedAt));
+  clearTimeout(T.dQ);
+  D.buzzer = i; D.turn = i; fresh(); sfx.buzz();
+  dHeard(0, '', ''); dHeard(1, '', '');
+  dAnswerWindow(i);
+}
+function dAnswerWindow(i) {
+  clearTimeout(T.dBuzz); clearInterval(T.dClock);
+  D.awaiting = true; D.buzzAt = performance.now();
+  dListen(i, () => dBuzzOk(i));
+  T.dBuzz = setTimeout(() => dBuzzFail(i), BUZZ_SECONDS * 1000 + BUZZ_GRACE);
+  T.dClock = setInterval(() => {
+    const left = Math.max(0, BUZZ_SECONDS - (performance.now() - D.buzzAt) / 1000), c = dq(i, '.clock');
+    c.textContent = left.toFixed(1).replace('.', ',') + ' s'; c.classList.toggle('hurry', left < 1.01);
   }, 50);
-  renderBuzz();
+  dRenderBuzz();
 }
-function stopAnswerWindow() {
-  clearTimeout(G.buzzTimer); clearInterval(G.timer); clearTimeout(G.silence);
-  G.awaiting = false;
-  halves.forEach((h, k) => q(k, '.clock').classList.remove('hurry'));
+function dStopWindow() { clearTimeout(T.dBuzz); clearInterval(T.dClock); stopListen(); D.awaiting = false; halves.forEach((h, k) => dq(k, '.clock').classList.remove('hurry')); }
+function dBuzzOk(i) {
+  dStopWindow();
+  const p = D.players[i]; p.points++; p.correct++;
+  sfx.ok(); halves[i].classList.add('flash-good');
+  dEndQ(i, '');
 }
-function buzzCorrect(i) {
-  if (G.buzzer !== i) return;
-  stopAnswerWindow();
-  G.ignoreFinalUntil = performance.now() + 1200;
-  const p = G.players[i];
-  p.points++; p.correct++; p.log.push('ok');
-  beep([660, 990]);
-  halves[i].classList.add('flash-good');
-  endQuestion(i, '');
-}
-function buzzFail(i) {
-  if (G.buzzer !== i || !G.running) return;
-  stopAnswerWindow();
-  const p = G.players[i];
-  p.points--; p.penalties++;
-  G.out[i] = true; G.buzzer = -1;
-  if (NATIVE) NATIVE.postMessage('reset');
-  beep([200, 150], .18);
+function dBuzzFail(i) {
+  if (D.buzzer !== i || !G.running) return;
+  dStopWindow();
+  const p = D.players[i]; p.points--; p.penalties++;
+  D.out[i] = true; D.buzzer = -1; fresh(); sfx.bad();
   const h = halves[i]; h.classList.remove('flash-bad'); void h.offsetWidth; h.classList.add('flash-bad');
-  if (G.out[0] && G.out[1]) return endQuestion(-1, 'Ingen av dere klarte det.');
-  armQuestionTimer();
-  renderBuzz();
-  showHeard(i, 'For sent! −1 poeng', 'bad');
-  showHeard(1 - i, `${G.players[i].name} bommet – din sjanse!`, 'good');
+  if (D.out[0] && D.out[1]) return dEndQ(-1, 'Ingen av dere klarte det.');
+  dArmQ(); dRenderBuzz();
+  dHeard(i, 'For sent! −1 poeng', 'bad'); dHeard(1 - i, `${p.name} bommet – din sjanse!`, 'good');
 }
-function endQuestion(winner, msg) {
-  clearTimeout(G.qTimer); stopAnswerWindow();
-  G.between = true; G.buzzer = -1;
-  const ans = fmt(G.players[0].cur.a);
-  renderBuzz();
+function dEndQ(winner, msg) {
+  clearTimeout(T.dQ); dStopWindow();
+  D.between = true; D.buzzer = -1;
+  const ans = fmt(D.players[0].cur.a);
+  dRenderBuzz();
   halves.forEach((h, k) => {
-    if (winner === k) showHeard(k, `✓ ${ans} er riktig! +1 poeng`, 'good');
-    else if (winner >= 0) showHeard(k, `${G.players[winner].name} svarte riktig: ${ans}`, '');
-    else showHeard(k, `${msg} Svaret var ${ans}.`, 'bad');
+    if (winner === k) dHeard(k, `✓ ${ans} er riktig! +1 poeng`, 'good');
+    else if (winner >= 0) dHeard(k, `${D.players[winner].name} svarte riktig: ${ans}`, '');
+    else dHeard(k, `${msg} Svaret var ${ans}.`, 'bad');
   });
-  setTimeout(() => { halves.forEach(h => h.classList.remove('flash-good')); beginQuestion(); }, winner >= 0 ? 1400 : 2200);
+  setTimeout(() => { halves.forEach(h => h.classList.remove('flash-good')); dQuestion(); }, winner >= 0 ? 1400 : 2200);
 }
-function renderBuzz() {
-  const answering = G.buzzer >= 0;
-  $('#game').classList.toggle('answering', answering);
-  const keys = G.mode === 'keys';
-  G.players.forEach((p, i) => {
-    const h = halves[i], active = G.buzzer === i && G.running;
-    h.classList.toggle('active', active);
-    h.classList.toggle('out', !!G.out[i] && !G.between);
-    q(i, '.name').innerHTML = avatarHTML(p.av) + ' ' + esc(p.name);
-    q(i, '.prog').innerHTML = `<span class="pts">${p.points} poeng</span>&nbsp;·&nbsp;<span>${Math.max(1, G.qIndex)}/${G.count}</span>`;
-    if (!active) { q(i, '.clock').textContent = ''; q(i, '.clock').classList.remove('hurry'); }
-    q(i, '.keypad').classList.toggle('hidden', !keys);
-    q(i, '.typed').classList.toggle('hidden', !keys || !active);
-    q(i, '.ear').classList.toggle('hidden', keys);
-    const st = q(i, '.status');
-    if (!G.running) st.textContent = '';
-    else if (G.between) st.textContent = '';
-    else if (active) st.textContent = keys ? 'Tast svaret – fort!' : 'Si svaret – nå! 🎤';
-    else if (answering) st.textContent = `${G.players[G.buzzer].name} svarer …`;
-    else if (G.out[i]) st.textContent = 'Du er ute denne runden';
-    else st.textContent = 'Trykk buzzeren når du kan svaret!';
-    if (p.cur) setProblem(q(i, '.problem'), p.cur);
-    q(i, '.buzzer').disabled = !G.running || G.between || answering || !!G.out[i];
+function dRenderBuzz() {
+  const answering = D.buzzer >= 0, keys = G.input === 'keys';
+  $('#duel').classList.toggle('answering', answering);
+  D.players.forEach((p, i) => {
+    const h = halves[i], active = D.buzzer === i && G.running;
+    h.classList.toggle('active', active); h.classList.toggle('out', !!D.out[i] && !D.between);
+    dq(i, '.name').innerHTML = av(p.av) + ' ' + esc(p.name);
+    dq(i, '.prog').innerHTML = `<b>${p.points} poeng</b>&nbsp;·&nbsp;${Math.max(1, D.qIndex)}/${D.count}`;
+    if (!active) { dq(i, '.clock').textContent = ''; dq(i, '.clock').classList.remove('hurry'); }
+    dq(i, '.keypad').classList.toggle('hidden', !keys);
+    dq(i, '.typed').classList.toggle('hidden', !keys || !active);
+    dq(i, '.ear').classList.toggle('hidden', keys);
+    const st = dq(i, '.status');
+    st.textContent = !G.running || D.between ? '' : active ? (keys ? 'Tast svaret – fort!' : 'Si svaret – nå! 🎤') : answering ? `${D.players[D.buzzer].name} svarer …` : D.out[i] ? 'Du er ute denne runden' : 'Trykk buzzeren når du kan svaret!';
+    if (p.cur) setProblem(dq(i, '.problem'), p.cur);
+    dq(i, '.buzzer').disabled = !G.running || D.between || answering || !!D.out[i];
   });
 }
-function finishBuzz() {
-  G.running = false; G.awaiting = false;
-  clearTimeout(G.qTimer); stopAnswerWindow();
-  Voice.stop(); keepAwake(false);
-  $('#game').classList.remove('answering');
-  const [a, b] = G.players;
-  const winner = a.points === b.points ? -1 : (a.points > b.points ? 0 : 1);
-  saveMatch(winner);
-  beep([523, 659, 784, 1047], .15);
+function dPause() { clearTimeout(T.dBuzz); clearTimeout(T.dQ); }
+function dResume(dt) {
+  if (D.variant !== 'buzz') { D.turnStart += dt; return; }
+  if (D.between) return;
+  if (D.buzzer >= 0) dAnswerWindow(D.buzzer); else dArmQ();
+}
+function dFinish() {
+  endGame();
+  $('#duel').classList.remove('answering');
+  const [a, b] = D.players, buzz = D.variant === 'buzz';
+  const diff = Math.abs(a.time - b.time);
+  const winner = buzz ? (a.points === b.points ? -1 : a.points > b.points ? 0 : 1) : (diff < 50 ? -1 : a.time < b.time ? 0 : 1);
+  const xp = D.players.map((p, i) => { const pr = prof(p.id); if (pr) { pr.games = (pr.games || 0) + 1; if (winner === i) pr.wins = (pr.wins || 0) + 1; } return award(p, winner === i); });
+  addHistory(buzz ? 'buzz' : 'tur', D.count, D.players.map((p, i) => ({ id: p.id, name: p.name, av: p.av, score: buzz ? `${p.points} poeng` : fmtTime(p.time), win: winner === i })));
+  dRender(); sfx.win(); confetti(); Music.start();
   halves.forEach((h, i) => {
-    const me = G.players[i], o = h.querySelector('.overlay');
-    const title = winner === -1 ? 'Uavgjort! 🤝' : winner === i ? 'Du vant! 🏆' : `${esc(G.players[winner].name)} vant`;
-    o.innerHTML = `
-      ${avatarHTML(me.av)}
-      <h2>${title}</h2>
-      <div class="stats">${esc(a.name)} <b>${a.points}</b> – <b>${b.points}</b> ${esc(b.name)}</div>
-      <div class="stats">
-        Dine poeng: <b>${me.points}</b><br>
-        Riktige: <b>${me.correct}</b> · For sent: <b>${me.penalties}</b> · Feil forsøk: <b>${me.wrong}</b><br>
-        Nivå: ${GRADES[me.grade].name}
-      </div>
-      <div style="display:flex;gap:10px;margin-top:6px">
-        <button class="primary again">↻ Spill igjen</button><button class="menu">Meny</button>
-      </div>`;
+    const me = D.players[i], o = h.querySelector('.overlay');
+    const title = winner === -1 ? 'Uavgjort! 🤝' : winner === i ? 'Du vant! 🏆' : `${esc(D.players[winner].name)} vant`;
+    o.innerHTML = `${av(me.av)}<h2>${title}</h2>
+      <div class="stats">${buzz ? `${esc(a.name)} <b>${a.points}</b> – <b>${b.points}</b> ${esc(b.name)}` : winner === -1 ? '' : `${winner === i ? 'Du var' : esc(D.players[winner].name) + ' var'} <b>${fmtTime(diff)}</b> raskere`}</div>
+      <div class="stats">${buzz ? `Riktige: <b>${me.correct}</b> · For sent: <b>${me.penalties}</b>` : `Din tid: <b>${fmtTime(me.time)}</b> · Riktige: <b>${me.correct}</b> · Hoppet over: <b>${me.skipped}</b>`}<br>
+        Feil forsøk: <b>${me.wrong}</b> · <b style="color:var(--cyan)">+${xp[i]} XP</b></div>
+      <div style="display:flex;gap:10px;margin-top:6px"><button class="btn gold again">↻ Igjen</button><button class="btn menu">Meny</button></div>`;
     o.classList.remove('hidden');
-    o.querySelector('.again').onclick = startGame;
+    o.querySelector('.again').onclick = () => G.again && G.again();
     o.querySelector('.menu').onclick = toMenu;
   });
 }
 
-function micDenied() {
-  G.mode = 'keys';
-  setMic(false);
-  render();
-  $('#micTxt').textContent = 'Mikrofon ikke tilgjengelig – bruk tastatur';
-  if (IN_ARTIFACT && !Dict) noVoiceHere();
-  if (NATIVE) $('#micTxt').textContent = 'Gi tilgang til mikrofon og tale i Innstillinger';
-}
+/* =========================================================
+   FEST og TRENING: én retning, runde for runde
+   ========================================================= */
+const RR = {};
+const RR_GRACE = 700;
+$('#rrKeys').innerHTML = keypadHTML();
+$$('#rrKeys button').forEach(b => b.onclick = () => keyPress(b.dataset.k, $('#rrTyped')));
+$('#rrSkip').onclick = () => { if (IN.on && !paused) rrPass('pass'); };
+$('#rrEar').onclick = () => { if (IN.on && !paused) { Voice.again(); rrHeard('👂 Lytter på nytt …'); } };
+$('#rrRepeat').onclick = () => { if (G.running && !paused && (IN.on || RR.speaking)) { rrStopClock(); rrAsk(false, true); } };
+function rrHeard(text, cls) { const el = $('#rrHeard'); el.textContent = text; el.className = 'heard ' + (cls || ''); }
 
-function goFullscreen() {
-  const el = document.documentElement;
-  try {
-    const p = el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' }) : null;
-    if (p && p.then) p.then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('portrait').catch(() => {})).catch(() => {});
-  } catch (e) {}
+function startRR(mode, profs, opt) {
+  G.mode = mode; G.rerender = rrRender;
+  Object.assign(RR, { players: profs.map(gp), count: opt.count || 0, limit: opt.limit || 0, sprint: !!opt.sprint, idx: -1, turnNo: 0, sprintLeft: 60000, token: 0, speaking: false, done: false });
+  RR.total = RR.sprint ? Infinity : RR.count * RR.players.length;
+  RR.read = mode === 'party' || !!DB.settings.readAloud;
+  beginGame('rr'); rrRender();
+  countdown(3, mode === 'party' ? `${RR.players[0].name} starter` : RR.sprint ? 'Så mange du klarer på 60 sekunder!' : 'Gjør deg klar!', rrNext);
 }
+function rrNext() {
+  if (!G.running) return;
+  if (RR.turnNo >= RR.total || (RR.sprint && RR.sprintLeft <= 0)) return rrFinish();
+  RR.idx = (RR.idx + 1) % RR.players.length; RR.turnNo++;
+  const p = RR.players[RR.idx];
+  p.cur = makeProblem(p.grade, p.cur && p.cur.q);
+  $('#rrMain').classList.remove('good'); rrHeard(''); $('#rrTyped').textContent = '';
+  rrRender(); rrAsk(true);
+}
+async function rrAsk(announce, force) {
+  const tok = ++RR.token, p = RR.players[RR.idx];
+  stopListen(); clearTimeout(T.rTimer); clearInterval(T.rTick);
+  if (RR.read || force) {
+    RR.speaking = true; $('#rrSub').textContent = '🔊 Hør etter …';
+    await speak((announce && RR.players.length > 1 ? `${p.name} sin tur. ` : '') + speakable(p.cur));
+    if (tok !== RR.token || !G.running || paused) return;
+    RR.speaking = false; fresh(); await sleep(220);
+    if (tok !== RR.token || !G.running || paused) return;
+  } else fresh();
+  rrListen();
+}
+function rrListen() {
+  const p = RR.players[RR.idx];
+  RR.span = RR.sprint ? RR.sprintLeft : RR.limit * 1000;
+  RR.startAt = performance.now(); RR.lastTick = 99;
+  listenFor(p.cur.a, {
+    heard: t => rrHeard(`«${t}»`),
+    correct: rrCorrect,
+    wrong: nums => { p.wrong++; rrHeard(`Hørte ${nums.map(fmt).join(', ')} – ikke riktig`, 'bad'); sfx.bad(); const m = $('#rrMain'); m.classList.remove('flash-bad'); void m.offsetWidth; m.classList.add('flash-bad'); },
+    cmd: c => { if (c === 'pass') rrPass('pass'); else { rrStopClock(); rrAsk(false, true); } },
+  });
+  if (RR.span > 0) T.rTimer = setTimeout(() => rrPass('time'), RR.span + (RR.sprint ? 0 : RR_GRACE));
+  T.rTick = setInterval(rrTick, 50);
+  rrRender(); rrTick();
+}
+function rrStopClock() {
+  clearTimeout(T.rTimer); clearInterval(T.rTick);
+  if (!IN.on || !RR.startAt) return;
+  const el = performance.now() - RR.startAt;
+  RR.players[RR.idx].time += el; if (RR.sprint) RR.sprintLeft -= el;
+  RR.startAt = 0;
+}
+function rrTick() {
+  if (!RR.startAt) return;
+  const el = performance.now() - RR.startAt, fg = $('#rrFg'), ring = $('#rrRing');
+  if (RR.span > 0) {
+    const left = Math.max(0, RR.span - el), frac = left / (RR.sprint ? 60000 : RR.span);
+    fg.style.strokeDashoffset = 339.3 * (1 - frac);
+    const secs = Math.ceil(left / 1000);
+    ring.classList.toggle('hurry', secs <= 3);
+    if (secs <= 3 && secs > 0 && secs < RR.lastTick) sfx.tick();
+    RR.lastTick = secs;
+    if (RR.sprint) $('#rrTitle').textContent = `⏱ ${secs} s`;
+  } else { fg.style.strokeDashoffset = 0; ring.classList.remove('hurry'); }
+}
+function rrCorrect() {
+  rrFinishClockAfterCorrect();
+  const p = RR.players[RR.idx], tok = ++RR.token;
+  p.points++; p.correct++; p.streak++; p.maxStreak = Math.max(p.maxStreak, p.streak);
+  sfx.ok(); $('#rrMain').classList.add('good');
+  rrRender(); rrHeard(`✓ ${fmt(p.cur.a)} er riktig!`, 'good');
+  (G.mode === 'party' ? speak('Riktig!') : sleep(550)).then(() => { if (tok === RR.token && G.running && !paused) rrNext(); });
+}
+function rrFinishClockAfterCorrect() {   // IN.on er allerede slått av når riktig svar meldes
+  clearTimeout(T.rTimer); clearInterval(T.rTick);
+  if (!RR.startAt) return;
+  const el = performance.now() - RR.startAt;
+  RR.players[RR.idx].time += el; if (RR.sprint) RR.sprintLeft -= el;
+  RR.startAt = 0;
+}
+function rrPass(reason) {
+  if (!G.running) return;
+  rrStopClock(); stopListen();
+  const p = RR.players[RR.idx], tok = ++RR.token;
+  p.streak = 0; p.skipped++;
+  if (RR.sprint && reason === 'time') { RR.sprintLeft = 0; return rrFinish(); }
+  sfx.bad(); rrRender();
+  rrHeard(`${reason === 'time' ? 'Tiden er ute!' : 'Pass.'} Svaret var ${fmt(p.cur.a)}`, 'bad');
+  (RR.read ? speak(`${reason === 'time' ? 'Tiden er ute. ' : ''}Svaret var ${sayNum(p.cur.a)}.`).then(() => sleep(300)) : sleep(1500))
+    .then(() => { if (tok === RR.token && G.running && !paused) rrNext(); });
+}
+function rrRender() {
+  const p = RR.players[Math.max(0, RR.idx)], keys = G.input === 'keys', party = G.mode === 'party';
+  $('#rr').classList.toggle('keys', keys);
+  $('#rrKeys').classList.toggle('hidden', !keys); $('#rrTyped').classList.toggle('hidden', !keys);
+  $('#rrEar').classList.toggle('hidden', keys);
+  $('#rrRepeat').classList.toggle('hidden', !('speechSynthesis' in window || TTS_NATIVE));
+  $('#rrAv').innerHTML = av(p.av);
+  $('#rrName').textContent = party ? `${p.name} sin tur` : p.name;
+  if (!RR.sprint) $('#rrTitle').textContent = party ? `🎉 Runde ${Math.max(1, Math.ceil(RR.turnNo / RR.players.length))} av ${RR.count}` : `🎯 Oppgave ${Math.max(1, RR.turnNo)} av ${RR.count}`;
+  else if (!RR.startAt) $('#rrTitle').textContent = `⏱ ${Math.ceil(Math.max(0, RR.sprintLeft) / 1000)} s`;
+  $('#rrSub').textContent = RR.speaking ? '🔊 Hør etter …' : p.streak >= 2 ? `🔥 ${p.streak} på rad!` : party ? (keys ? 'Tast svaret' : 'Si svaret høyt') : `${GRADES[p.grade].name}`;
+  if (p.cur) setProblem($('#rrProb'), p.cur); else $('#rrProb').textContent = '';
+  $('#rrScore').innerHTML = party
+    ? RR.players.map((q, i) => `<span class="chip ${i === RR.idx ? 'now' : ''}">${av(q.av)}${q.points}</span>`).join('')
+    : `<span class="chip">✅ ${p.points} riktige</span><span class="chip">🏅 Rekord ${prof(p.id) ? prof(p.id).best || 0 : 0}</span>`;
+}
+function rrPause() { rrStopClock(); stopListen(); RR.token++; RR.speaking = false; }
+function rrResume() { if (RR.done) return; if (RR.sprint && RR.sprintLeft <= 0) return rrFinish(); rrRender(); rrAsk(false); }
+function rrFinish() {
+  if (RR.done) return; RR.done = true;
+  endGame();
+  const party = G.mode === 'party';
+  const order = [...RR.players].sort((a, b) => b.points - a.points || a.time - b.time);
+  const top = order[0], tie = party && order.length > 1 && order[1].points === top.points && Math.abs(order[1].time - top.time) < 50;
+  let record = false;
+  order.forEach((p, i) => {
+    const pr = prof(p.id), won = party && i === 0 && !tie;
+    p.xp = award(p, won);
+    if (pr && party) { pr.games = (pr.games || 0) + 1; if (won) pr.wins = (pr.wins || 0) + 1; }
+    if (pr && RR.sprint && p.points > (pr.best || 0)) { pr.best = p.points; record = true; }
+  });
+  const score = p => party ? `${p.points} poeng` : RR.sprint ? `${p.points} riktige` : `${p.correct}/${RR.count} · ${fmtTime(p.time)}`;
+  addHistory(party ? 'fest' : 'tren', RR.sprint ? 0 : RR.count, order.map((p, i) => ({ id: p.id, name: p.name, av: p.av, score: score(p), win: party && i === 0 && !tie })));
+  $('#resHero').innerHTML = party
+    ? `${av(top.av)}<h1>${tie ? 'Uavgjort! 🤝' : esc(top.name) + ' vant! 🏆'}</h1><p class="note">${top.points} poeng på ${RR.count} runder</p>`
+    : `${av(top.av)}<h1>${record ? 'Ny rekord! 🏅' : top.points ? 'Bra jobba! 💪' : 'Prøv igjen!'}</h1><p class="note">${RR.sprint ? `${top.points} riktige på 60 sekunder` : `${top.correct} av ${RR.count} riktige på ${fmtTime(top.time)}`}${top.maxStreak >= 3 ? ` · ${top.maxStreak} på rad` : ''}</p>`;
+  $('#resList').innerHTML = order.map((p, i) => `<div class="res" style="animation-delay:${i * .08}s"><span class="m">${party ? ['🥇', '🥈', '🥉'][i] || i + 1 : '🎯'}</span>${av(p.av)}
+    <span class="n"><b>${esc(p.name)}</b><small>${p.correct} riktige · ${p.skipped} pass · ${p.wrong} feil forsøk</small></span>
+    <span class="sc">${score(p)}<div class="xp">+${p.xp} XP</div></span></div>`).join('');
+  try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
+  show('results'); sfx.win(); if (party || record) confetti();
+  if (party) setTimeout(() => speak(tie ? 'Det ble uavgjort!' : `${top.name} vant med ${top.points} poeng!`), 900);
+}
+$('#resAgain').onclick = () => G.again && G.again();
 
 /* =========================================================
-   6. Oppsett-skjerm
+   MENYER
    ========================================================= */
-['#g1', '#g2'].forEach(id => {
-  $(id).innerHTML = GRADES.slice(1).map((g, i) => `<option value="${i + 1}">${g.name}</option>`).join('');
-  $(id).value = 4;
-  $(id).onchange = gradeInfo;
+const RENDER = {};
+RENDER.home = () => { $('.homeavs').innerHTML = DB.players.slice(0, 6).map((p, i) => `<span class="av" style="animation-delay:${-i * .4}s">${avSVG(p.av)}</span>`).join(''); };
+$$('.mode').forEach(b => b.onclick = () => { sfx.click(); openSetup(b.dataset.mode); });
+
+/* ---------- Spillere ---------- */
+RENDER.players = () => {
+  $('#playerList').innerHTML = DB.players.map(p => {
+    const r = rankOf(p.xp || 0);
+    return `<button class="card pcard" data-edit="${p.id}">${av(p.av)}<span class="info"><b>${esc(p.name)}</b><small>${p.age} år · ${GRADES[p.grade].name}</small>
+      <div class="xpbar"><i style="width:${Math.round(r.frac * 100)}%"></i></div>
+      <small><span class="rank">${r.title}</span> · ${p.xp || 0} XP · ${p.wins || 0} seire${p.best ? ` · rekord ${p.best}` : ''}</small></span><span style="font-size:22px;color:var(--muted)">›</span></button>`;
+  }).join('') || '<p class="note">Ingen spillere ennå. Lag den første!</p>';
+};
+$('#playerList').onclick = e => { const b = e.target.closest('[data-edit]'); if (b) { sfx.click(); openEditor(b.dataset.edit, 'players'); } };
+$('#newPlayer').onclick = () => { sfx.click(); openEditor(null, 'players'); };
+
+const E = {};
+$('#edGrade').innerHTML = GRADES.slice(1).map((g, i) => `<option value="${i + 1}">${g.name}</option>`).join('');
+function openEditor(id, back) {
+  const p = id ? prof(id) : null;
+  Object.assign(E, { id, back, av: p ? { ...p.av } : randAv(), age: p ? p.age : 10, armed: false });
+  $('#edTitle').textContent = p ? 'Endre spiller' : 'Ny spiller';
+  $('#edName').value = p ? p.name : '';
+  $('#edGrade').value = p ? p.grade : gradeForAge(E.age);
+  $('#edDelete').classList.toggle('hidden', !p); $('#edDelete').textContent = '🗑 Slett spiller';
+  drawEditor(); show('editor');
+}
+function drawEditor() {
+  $('#edAv').innerHTML = av(E.av);
+  $('#edAge').textContent = E.age + ' år';
+  $('#edParts').innerHTML = Object.keys(AV_N).map(k => `<div class="part"><button data-part="${k}" data-d="-1" aria-label="Forrige ${AV_LABEL[k]}">‹</button><span>${AV_LABEL[k]} <small>${E.av[k] + 1}/${AV_N[k]}</small></span><button data-part="${k}" data-d="1" aria-label="Neste ${AV_LABEL[k]}">›</button></div>`).join('');
+  $('#edCol').innerHTML = AV_COL.map((c, i) => `<button data-col="${i}" style="background:${c}" class="${E.av.col === i ? 'on' : ''}" aria-label="Farge ${i + 1}"></button>`).join('');
+  $('#edBg').innerHTML = AV_BG.map((c, i) => `<button data-bg="${i}" style="background:${c}" class="${E.av.bg === i ? 'on' : ''}" aria-label="Bakgrunn ${i + 1}"></button>`).join('');
+  $('#edGradeInfo').textContent = GRADES[+$('#edGrade').value].info;
+}
+$('#editor').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.part) { const k = b.dataset.part; E.av[k] = (E.av[k] + +b.dataset.d + AV_N[k]) % AV_N[k]; sfx.pop(); drawEditor(); }
+  else if (b.dataset.col) { E.av.col = +b.dataset.col; sfx.pop(); drawEditor(); }
+  else if (b.dataset.bg) { E.av.bg = +b.dataset.bg; sfx.pop(); drawEditor(); }
 });
-function gradeInfo() {
-  const a = +$('#g1').value, b = +$('#g2').value;
-  $('#gradeInfo').innerHTML = a === b
-    ? `<b>${GRADES[a].name}:</b> ${GRADES[a].info}`
-    : `<b>${GRADES[a].name}:</b> ${GRADES[a].info}<br><b>${GRADES[b].name}:</b> ${GRADES[b].info}`;
-}
-document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
-  seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
-  setupUI();
-}));
-function setupUI() {
-  const buzzMode = $('#gameSeg .on').dataset.v === 'buzz';
-  document.querySelectorAll('.g2row').forEach(el => el.classList.toggle('hidden', buzzMode));
-  $('#g1lbl').textContent = buzzMode ? 'Nivå (felles for begge)' : 'Nivå';
-  $('#countLbl').textContent = buzzMode ? 'Antall spørsmål' : 'Oppgaver per spiller';
-  $('#ansRow').classList.toggle('hidden', buzzMode);
-  $('#gameInfo').textContent = buzzMode
-    ? `Begge får samme stykke. Trykk på buzzeren din først, så har du ${BUZZ_SECONDS} sekunder på å si svaret. Riktig gir +1 poeng, ikke svar i tide gir −1. Flest poeng vinner.`
-    : 'Dere får hvert deres stykke, annenhver gang. Kortest total tid vinner. Feil svar gir ingen straff, men klokka går. «Hopp over» gir +5 sekunder.';
-}
-if (!SR && !IN_ARTIFACT && !NATIVE) {
-  $('#srWarn').classList.remove('hidden');
-  $('#srWarn').textContent = 'Denne nettleseren støtter ikke talegjenkjenning. Spillet bruker tastatur i stedet. Prøv Chrome på Android eller Safari på iPhone for å svare med stemmen.';
-  document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === 'keys'));
-}
-/* ---------- Avatarer ---------- */
-const AVATARS = ['🦁','🐯','🐼','🦊','🐸','🐵','🦄','🐲','🦖','🦕','🐙','🦈','🐬','🐧','🦉','🦅','🐺','🐨','🐻','🐻‍❄️','🐰','🦝','🦔','🐢','🐝','🦋','🐞','🦀',
-  '🤖','👽','👾','👻','💀','🎃','🥷','🧙','🧛','🧟','🦸','🦹','🧜','🧞','🤠','😎','🥸','🤓','🤡','👑',
-  '🚀','🛸','⚡','🔥','🌈','⭐','🌙','💎','🎮','🎸','⚽','🏀','🏒','⛷️','🛹','🏆','🍕','🍩','🌮','🍦','🧠','🦾'];
-const AV_COLORS = ['#3c82f6','#f59e0b','#22c55e','#ef4444','#a855f7','#ec4899','#14b8a6','#eab308','#64748b','#0f172a'];
-let AV = [{ e: '🦁', c: '#3c82f6' }, { e: '🐲', c: '#f59e0b' }];
-const avatarHTML = a => `<span class="avatar" style="--avc:${a && a.c || '#334'}">${a ? a.e : '🙂'}</span>`;
-function drawAvButtons() {
-  [0, 1].forEach(i => { $('#av' + (i + 1)).innerHTML = `${avatarHTML(AV[i])}<small>Bytt</small>`; });
-}
-let avFor = 0;
-function openAvPicker(i) {
-  avFor = i;
-  $('#avGrid').innerHTML = AVATARS.map(e => `<button data-e="${e}" class="${AV[i].e === e ? 'on' : ''}">${e}</button>`).join('');
-  $('#avColors').innerHTML = AV_COLORS.map(c => `<button data-c="${c}" style="background:${c}" class="${AV[i].c === c ? 'on' : ''}" aria-label="Farge ${c}"></button>`).join('');
-  $('#avPicker').classList.remove('hidden');
-}
-$('#avGrid').onclick = e => { const b = e.target.closest('button'); if (!b) return; AV[avFor] = { ...AV[avFor], e: b.dataset.e }; openAvPicker(avFor); drawAvButtons(); };
-$('#avColors').onclick = e => { const b = e.target.closest('button'); if (!b) return; AV[avFor] = { ...AV[avFor], c: b.dataset.c }; openAvPicker(avFor); drawAvButtons(); };
-$('#avDone').onclick = () => { $('#avPicker').classList.add('hidden'); saveSettings(); };
-$('#av1').onclick = () => openAvPicker(0);
-$('#av2').onclick = () => openAvPicker(1);
-function saveSettings() {
-  try {
-    const s = JSON.parse(localStorage.getItem('mattekamp') || '{}');
-    s.av = AV; s.ops = [...document.querySelectorAll('#opsChips .on')].map(b => b.dataset.v);
-    localStorage.setItem('mattekamp', JSON.stringify(s));
-  } catch (e) {}
-}
-
-/* ---------- Regnearter ---------- */
-$('#opsChips').innerHTML = OPS.map(o => `<button data-v="${o.k}" class="on">${o.label}</button>`).join('');
-$('#opsChips').onclick = e => {
-  const b = e.target.closest('button'); if (!b) return;
-  const on = document.querySelectorAll('#opsChips .on');
-  if (b.classList.contains('on') && on.length === 1) return;   // minst én regneart må være med
-  b.classList.toggle('on'); saveSettings();
+$('#edRandom').onclick = () => { E.av = randAv(); sfx.pop(); drawEditor(); };
+const setAge = d => { E.age = Math.max(4, Math.min(99, E.age + d)); $('#edGrade').value = gradeForAge(E.age); sfx.pop(); drawEditor(); };
+$('#ageDown').onclick = () => setAge(-1); $('#ageUp').onclick = () => setAge(1);
+$('#edGrade').onchange = drawEditor;
+function closeEditor() { if (E.back === 'setup') { renderSetup(); show('setup'); } else { RENDER.players(); show('players'); } }
+$('#edBack').onclick = closeEditor;
+$('#edSave').onclick = () => {
+  const name = $('#edName').value.trim() || `Spiller ${DB.players.length + (E.id ? 0 : 1)}`;
+  let p = E.id && prof(E.id);
+  if (!p) { p = newProfile(name, E.age); DB.players.push(p); if (E.back === 'setup') pickPlayer(p.id); }
+  Object.assign(p, { name, age: E.age, grade: +$('#edGrade').value, av: { ...E.av } });
+  save(); sfx.ok(); closeEditor();
+};
+$('#edDelete').onclick = () => {
+  if (!E.armed) { E.armed = true; $('#edDelete').textContent = 'Trykk igjen for å slette'; return; }
+  DB.players = DB.players.filter(p => p.id !== E.id); save(); closeEditor();
 };
 
-/* ---------- Kamphistorikk (lagres på denne enheten) ---------- */
-const HIST_KEY = 'mattekamp_historikk';
-function loadHist() { try { return JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch (e) { return []; } }
-function saveMatch(winner) {
-  try {
-    const h = loadHist();
-    h.unshift({
-      t: Date.now(), game: G.game, count: G.count, ops: G.ops, winner,
-      players: G.players.map(p => ({ name: p.name, av: p.av, grade: p.grade, time: Math.round(p.time),
-        correct: p.correct, skipped: p.skipped, wrong: p.wrong, points: p.points, penalties: p.penalties })),
-    });
-    localStorage.setItem(HIST_KEY, JSON.stringify(h.slice(0, 500)));
-  } catch (e) {}
+/* ---------- Oppsett ---------- */
+const S = {};
+const LIMITS = { duel: [2, 2], party: [2, 8], train: [1, 1] };
+const TITLES = { duel: '⚔️ Duell', party: '🎉 Fest', train: '🎯 Trening' };
+function openSetup(mode) {
+  const L = DB.last[mode] || {};
+  Object.assign(S, { mode, sel: (L.sel || []).filter(prof), variant: L.variant || 'turn', count: L.count || (mode === 'party' ? 5 : 10), grade: L.grade || 4, limit: L.limit === undefined ? 10 : L.limit, type: L.type || 'sprint',
+    input: DB.last.input || 'voice', ops: (DB.last.ops && DB.last.ops.length ? DB.last.ops : ALL_OPS).slice() });
+  if (!S.sel.length) S.sel = DB.players.slice(0, mode === 'train' ? 1 : mode === 'duel' ? 2 : 4).map(p => p.id);
+  renderSetup(); show('setup');
 }
-function showHistory() {
-  const h = loadHist();
-  const body = $('#histBody');
-  if (!h.length) { body.innerHTML = '<p class="lead" style="margin-top:12px">Ingen kamper ennå. Spill en kamp, så dukker den opp her.</p>'; }
-  else {
-    // Toppliste per navn
-    const tally = {};
-    h.forEach(m => m.players.forEach((p, i) => {
-      const k = p.name.toLowerCase();
-      tally[k] = tally[k] || { name: p.name, av: p.av, games: 0, wins: 0 };
-      tally[k].games++; if (m.winner === i) tally[k].wins++;
-      tally[k].av = tally[k].av || p.av;
-    }));
-    const board = Object.values(tally).sort((a, b) => b.wins - a.wins || b.games - a.games).slice(0, 8);
-    const dt = new Intl.DateTimeFormat('nb-NO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-    body.innerHTML = `
-      <label style="display:block; margin-top:12px">Seire totalt (${h.length} kamper)</label>
-      <div class="board">${board.map((r, n) => `<div>${n === 0 ? '🥇' : n === 1 ? '🥈' : n === 2 ? '🥉' : '&nbsp;&nbsp;'} ${avatarHTML(r.av)}<span class="n">${esc(r.name)}</span><span>${r.wins}</span><small>av ${r.games}</small></div>`).join('')}</div>
-      <label style="display:block; margin-top:12px">Alle kamper</label>
-      <div class="hgrid">${h.map(m => {
-        const [a, b] = m.players;
-        const score = m.game === 'buzz' ? `${a.points} – ${b.points} poeng` : `${fmtTime(a.time)} – ${fmtTime(b.time)}`;
-        const lvl = m.game === 'buzz' || a.grade === b.grade ? GRADES[a.grade].name : `${GRADES[a.grade].name} / ${GRADES[b.grade].name}`;
-        const nm = (p, i) => `<span class="${m.winner === i ? 'win' : ''}">${esc(p.name)}${m.winner === i ? ' 🏆' : ''}</span>`;
-        return `<div class="hrow">
-          <div class="top"><span>${dt.format(new Date(m.t))}</span><span>${m.game === 'buzz' ? '🔔 Buzzer' : '🔁 Annenhver tur'} · ${lvl} · ${m.count} stk</span></div>
-          <div class="vs">${avatarHTML(a.av)} ${nm(a, 0)} <span style="color:var(--muted)">mot</span> ${avatarHTML(b.av)} ${nm(b, 1)}</div>
-          <div class="top"><span>${score}</span><span>${m.winner === -1 ? 'Uavgjort' : ''}</span></div>
-        </div>`;
-      }).join('')}</div>`;
+function pickPlayer(id) {
+  const [, max] = LIMITS[S.mode], i = S.sel.indexOf(id);
+  if (i >= 0) S.sel.splice(i, 1);
+  else { if (S.sel.length >= max) { if (max > 2) return; S.sel.shift(); } S.sel.push(id); }
+}
+const seg = (key, opts) => `<div class="seg">${opts.map(([v, l]) => `<button data-set="${key}" data-v="${v}" class="${String(S[key]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+function renderSetup() {
+  const m = S.mode, [min, max] = LIMITS[m];
+  $('#suTitle').textContent = TITLES[m];
+  const voice = canVoice(); if (!voice) S.input = 'keys';
+  const who = m === 'duel' ? 'Velg to spillere (1 sitter nederst, 2 øverst)' : m === 'party' ? 'Velg 2–8 spillere i den rekkefølgen dere vil spille' : 'Hvem skal trene?';
+  let h = `<div class="card"><p class="lbl">${who}</p><div class="pick">${DB.players.map(p => {
+    const n = S.sel.indexOf(p.id);
+    return `<button data-pick="${p.id}" class="${n >= 0 ? 'on' : ''}">${n >= 0 && max > 1 ? `<span class="n">${n + 1}</span>` : ''}${av(p.av)}<b>${esc(p.name)}</b><small>${GRADES[p.grade].name}</small></button>`;
+  }).join('')}<button class="add" data-add><i>＋</i>Ny spiller</button></div></div>`;
+  if (m === 'duel') {
+    h += `<div class="card stack"><div><p class="lbl">Spillmåte</p>${seg('variant', [['turn', '🔁 Annenhver tur'], ['buzz', '🔔 Buzzer']])}</div>
+      <p class="note">${S.variant === 'buzz' ? `Begge får samme stykke. Førstemann på buzzeren har ${BUZZ_SECONDS} sekunder på å svare. Riktig gir +1, for sent gir −1.` : 'Dere får hvert deres stykke på eget nivå. Kortest total tid vinner.'}</p>
+      ${S.variant === 'buzz' ? `<div><p class="lbl">Felles nivå</p><select id="suGrade">${GRADES.slice(1).map((g, i) => `<option value="${i + 1}" ${S.grade === i + 1 ? 'selected' : ''}>${g.name}</option>`).join('')}</select></div>` : ''}
+      <div><p class="lbl">${S.variant === 'buzz' ? 'Antall spørsmål' : 'Oppgaver per spiller'}</p>${seg('count', [[5, '5'], [10, '10'], [15, '15'], [20, '20']])}</div></div>`;
+  } else if (m === 'party') {
+    h += `<div class="card stack"><p class="note">En stemme sier hvem sin tur det er og leser stykket høyt. Si svaret, «gjenta» eller «pass». Hver spiller får stykker på sitt eget nivå.</p>
+      <div><p class="lbl">Runder</p>${seg('count', [[3, '3'], [5, '5'], [10, '10']])}</div>
+      <div><p class="lbl">Tid per stykke</p>${seg('limit', [[5, '5 s'], [10, '10 s'], [15, '15 s'], [0, 'Ingen']])}</div></div>`;
+  } else {
+    h += `<div class="card stack"><div><p class="lbl">Øvelse</p>${seg('type', [['sprint', '⏱ 60 sekunder'], ['10', '🎯 10 stykker'], ['20', '🎯 20 stykker']])}</div>
+      <p class="note">${S.type === 'sprint' ? 'Løs så mange du klarer på ett minutt og slå rekorden din.' : 'Løs alle stykkene så fort du kan.'}</p></div>`;
   }
-  $('#histClear').textContent = '🗑 Slett historikk'; $('#histClear').dataset.armed = '';
-  $('#histClear').classList.toggle('hidden', !h.length);
-  $('#history').classList.remove('hidden');
+  h += `<div class="card stack"><div><p class="lbl">Regnearter</p><div class="seg chips">${OPS.map(o => `<button data-op="${o.k}" class="${S.ops.includes(o.k) ? 'on' : ''}">${o.label}</button>`).join('')}</div></div>
+    <div><p class="lbl">Svar med</p>${seg('input', [['voice', '🎤 Stemme'], ['keys', '⌨️ Tastatur']])}</div>
+    ${voice ? '' : `<div class="warn">${IN_ARTIFACT ? 'Stemme virker ikke i denne visningen. Bruk iPhone-appen, eller Chrome på Android eller PC.' : 'Denne nettleseren støtter ikke talegjenkjenning.'} Spillet bruker tastatur.</div>`}</div>`;
+  $('#suBody').innerHTML = h;
+  $('#suStart').disabled = S.sel.length < min;
+  $('#suStart').textContent = S.sel.length < min ? (min === 2 ? 'Velg minst to spillere' : 'Velg en spiller') : 'Start!';
+  const g = $('#suGrade'); if (g) g.onchange = () => { S.grade = +g.value; };
 }
-$('#histBtn').onclick = showHistory;
-$('#histBack').onclick = () => $('#history').classList.add('hidden');
-$('#histClear').onclick = () => {
-  const b = $('#histClear');
+$('#suBody').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.pick) pickPlayer(b.dataset.pick);
+  else if (b.dataset.add !== undefined) return openEditor(null, 'setup');
+  else if (b.dataset.set) { const k = b.dataset.set, v = b.dataset.v; S[k] = (k === 'count' || k === 'limit') ? +v : v; }
+  else if (b.dataset.op) { const k = b.dataset.op, i = S.ops.indexOf(k); if (i >= 0) { if (S.ops.length > 1) S.ops.splice(i, 1); } else S.ops.push(k); }
+  else return;
+  sfx.click(); renderSetup();
+});
+$('#suStart').onclick = () => {
+  const profs = S.sel.map(prof).filter(Boolean), m = S.mode;
+  if (profs.length < LIMITS[m][0]) return;
+  DB.last[m] = { sel: S.sel.slice(), variant: S.variant, count: S.count, grade: S.grade, limit: S.limit, type: S.type };
+  DB.last.input = S.input; DB.last.ops = S.ops.slice(); save();
+  const cfg = JSON.parse(JSON.stringify(S));
+  G.again = () => {
+    const ps = cfg.sel.map(prof).filter(Boolean); if (ps.length < LIMITS[cfg.mode][0]) return toMenu();
+    G.input = canVoice() ? cfg.input : 'keys'; G.ops = cfg.ops;
+    if (cfg.mode === 'duel') startDuel(ps, cfg.variant, cfg.count, cfg.grade);
+    else if (cfg.mode === 'party') startRR('party', ps, { count: cfg.count, limit: cfg.limit });
+    else startRR('train', ps, cfg.type === 'sprint' ? { sprint: true } : { count: +cfg.type });
+  };
+  G.again();
+};
+
+/* ---------- Historikk ---------- */
+const MODE_NAME = { tur: '🔁 Duell', buzz: '🔔 Buzzer', fest: '🎉 Fest', tren: '🎯 Trening' };
+RENDER.history = () => {
+  const h = DB.history, body = $('#histBody');
+  if (!h.length) { body.innerHTML = '<div class="card"><p class="note">Ingen kamper ennå. Spill en runde, så dukker den opp her.</p></div>'; return; }
+  const tally = {};
+  h.filter(m => m.mode !== 'tren').forEach(m => m.rows.forEach(r => {
+    const k = r.id || r.name; tally[k] = tally[k] || { name: r.name, av: r.av, games: 0, wins: 0 };
+    const p = prof(r.id); if (p) { tally[k].name = p.name; tally[k].av = p.av; }
+    tally[k].games++; if (r.win) tally[k].wins++;
+  }));
+  const board = Object.values(tally).sort((a, b) => b.wins - a.wins || b.games - a.games).slice(0, 8);
+  const dt = new Intl.DateTimeFormat('nb-NO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  body.innerHTML = (board.length ? `<div class="card"><p class="lbl">Flest seire</p><div class="stack">${board.map((r, n) => `<div class="lb"><span>${['🥇', '🥈', '🥉'][n] || '&nbsp;' + (n + 1) + '.'}</span>${av(r.av)}<span class="n">${esc(r.name)}</span><span>${r.wins}</span><small>av ${r.games}</small></div>`).join('')}</div></div>` : '')
+    + `<div class="card"><p class="lbl">Alle kamper (${h.length})</p><div class="stack">${h.map(m => `<div class="hrow"><div class="top"><span>${dt.format(new Date(m.t))}</span><span>${MODE_NAME[m.mode] || ''}${m.count ? ' · ' + m.count + ' stk' : ''}</span></div>
+      ${m.rows.map(r => `<div class="who">${av(r.av)}<span class="${r.win ? 'win' : ''}" style="flex:1">${esc(r.name)}${r.win ? ' 🏆' : ''}</span><span>${esc(r.score)}</span></div>`).join('')}</div>`).join('')}</div></div>`;
+};
+
+/* ---------- Innstillinger ---------- */
+const SETTINGS = [['music', '🎵 Musikk i menyene', 'Musikken er alltid av under spill, så mikrofonen hører dere.'], ['sfx', '🔊 Lydeffekter', ''], ['readAloud', '🗣 Les opp stykkene i trening', 'I Fest leses de alltid opp.'], ['showAns', '👀 Vis fasit til den som venter', 'Gjelder Duell med annenhver tur.']];
+RENDER.settings = () => {
+  $('#setList').innerHTML = SETTINGS.map(([k, l, s]) => `<button class="toggle ${DB.settings[k] ? 'on' : ''}" data-tog="${k}"><span>${l}${s ? `<small>${s}</small>` : ''}</span><i></i></button>`).join('');
+  $('#wipe').textContent = '🗑 Slett alle spillere og kamper'; $('#wipe').dataset.armed = '';
+};
+$('#setList').onclick = e => {
+  const b = e.target.closest('[data-tog]'); if (!b) return;
+  const k = b.dataset.tog; DB.settings[k] = !DB.settings[k]; save();
+  if (k === 'music') { if (DB.settings.music) Music.start(); else Music.stop(); }
+  sfx.click(); RENDER.settings();
+};
+$('#wipe').onclick = () => {
+  const b = $('#wipe');
   if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Trykk igjen for å slette alt'; return; }
-  try { localStorage.removeItem(HIST_KEY); } catch (e) {}
-  showHistory();
+  const s = DB.settings; DB = freshDB(); DB.settings = s; seedPlayers(); save(); RENDER.settings();
 };
 
-try {
-  const s = JSON.parse(localStorage.getItem('mattekamp') || 'null');
-  if (s) {
-    $('#n1').value = s.n1; $('#n2').value = s.n2; $('#g1').value = s.g1; $('#g2').value = s.g2;
-    document.querySelectorAll('#countSeg button').forEach(b => b.classList.toggle('on', b.dataset.v == s.c));
-    document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === s.m));
-    if (s.av && s.av.length === 2) AV = s.av;
-    if (s.ops && s.ops.length) document.querySelectorAll('#opsChips button').forEach(b => b.classList.toggle('on', s.ops.includes(b.dataset.v)));
-    if (s.gm) document.querySelectorAll('#gameSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === s.gm));
-    if (s.f) document.querySelectorAll('#ansSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === s.f));
-  }
-} catch (e) {}
-gradeInfo();
-setupUI();
-drawAvButtons();
-$('#startBtn').onclick = startGame;
-$('#mic').onclick = () => { if (G.running && !G.paused && G.mode === 'voice') Voice.start(); };
-$('#pauseBtn').onclick = () => pause(true);
-$('#resumeBtn').onclick = () => pause(false);
-$('#quitBtn').onclick = toMenu;
+/* =========================================================
+   Oppstart: standardspillere, bakgrunn og intro
+   ========================================================= */
+function seedPlayers() {
+  if (DB.players.length) return;
+  let names = ['Spiller 1', 'Spiller 2'];
+  try { const o = JSON.parse(localStorage.getItem('mattekamp') || 'null'); if (o && o.n1 && o.n2) names = [o.n1, o.n2]; } catch (e) {}
+  names.forEach(n => DB.players.push(newProfile(n, 10)));
+  try {   // ta med kamper fra forrige versjon
+    const oldH = JSON.parse(localStorage.getItem('mattekamp_historikk') || '[]');
+    if (!DB.history.length) DB.history = oldH.map(m => ({ t: m.t, mode: m.game === 'buzz' ? 'buzz' : 'tur', count: m.count,
+      rows: m.players.map((p, i) => ({ name: p.name, av: null, score: m.game === 'buzz' ? `${p.points} poeng` : fmtTime(p.time), win: m.winner === i })) }));
+  } catch (e) {}
+  save();
+}
+seedPlayers();
+$('#bgfx').innerHTML = Array.from({ length: 16 }, (_, i) => `<span style="left:${(i * 6.3 + rnd(5)) % 96}%; font-size:${26 + rnd(46)}px; animation-duration:${14 + rnd(16)}s; animation-delay:${-rnd(30)}s">${'+−×÷=%√7381π²'[i % 13]}</span>`).join('');
+$('#intro .l1').innerHTML = [...'MATTE'].map((ch, i) => `<span style="animation-delay:${.15 + i * .12}s">${ch}</span>`).join('');
+$('.introavs').innerHTML = Array.from({ length: 5 }, (_, i) => `<span class="av" style="animation-delay:${1.5 + i * .12}s, ${-i * .5}s">${avSVG(DB.players[i] ? DB.players[i].av : randAv())}</span>`).join('');
+['8×8', '64', '7+5', '√81', '12', '9²'].forEach((t, i) => { const s = document.createElement('span'); s.className = 'eqfly'; s.textContent = t; s.style.cssText = `left:${8 + i * 15}%; top:${i % 2 ? 14 : 80}%; animation-delay:${1.8 + i * .5}s`; $('#intro').appendChild(s); });
+let introGone = false;
+$('#intro').addEventListener('click', () => {
+  if (introGone) return; introGone = true;
+  actx(); sfx.intro();
+  $('#intro').classList.add('leave');
+  setTimeout(() => { RENDER.home(); show('home'); }, 430);
+});
 </script>
 </body>
 </html>
