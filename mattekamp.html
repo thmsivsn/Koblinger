@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="theme-color" content="#0f1220" />
+<title>Mattekamp</title>
+<style>
+  :root{
+    --bg:#0f1220; --panel:#181c2f; --panel-2:#1f2540; --line:#2b3158;
+    --text:#f3f4f6; --muted:#aab1c5;
+    --p1:#3c82f6; --p2:#f59e0b;
+    --good:#22c55e; --bad:#ef4444; --skip:#eab308;
+    --radius:16px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{height:100%; margin:0}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    overflow:hidden; touch-action:manipulation; user-select:none; -webkit-user-select:none;
+  }
+  .hidden{display:none !important}
+  button{
+    font:inherit; font-weight:700; color:var(--text); background:var(--panel-2);
+    border:1px solid var(--line); border-radius:12px; padding:10px 14px; min-height:44px; cursor:pointer;
+  }
+  button:active{transform:scale(.97)}
+  button.primary{background:var(--good); border-color:transparent; color:#06240f}
+
+  /* ---------- Oppsett ---------- */
+  #setup{
+    position:fixed; inset:0; overflow-y:auto; padding:16px;
+    padding-top:calc(16px + env(safe-area-inset-top)); padding-bottom:calc(16px + env(safe-area-inset-bottom));
+  }
+  .card{max-width:560px; margin:0 auto; background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:18px}
+  h1{margin:0 0 4px; font-size:28px}
+  .lead{color:var(--muted); margin:0 0 16px; line-height:1.4}
+  .players{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+  .pbox{border:2px solid var(--line); border-radius:14px; padding:12px; display:flex; flex-direction:column; gap:8px}
+  .pbox.p1{border-color:var(--p1)} .pbox.p2{border-color:var(--p2)}
+  label{font-size:13px; color:var(--muted); font-weight:600}
+  input,select{
+    font:inherit; color:var(--text); background:#101326; border:1px solid var(--line); border-radius:10px;
+    padding:10px; min-height:44px; width:100%;
+  }
+  .row{margin-top:14px; display:flex; flex-direction:column; gap:6px}
+  .seg{display:flex; gap:6px; flex-wrap:wrap}
+  .seg button{flex:1; min-width:56px}
+  .seg button.on{background:var(--p1); border-color:transparent}
+  .note{font-size:13px; color:var(--muted); line-height:1.45; margin-top:14px}
+  .warn{background:#3b1d1d; border:1px solid #7f1d1d; color:#fecaca; border-radius:10px; padding:10px; font-size:14px; margin-top:12px}
+  #startBtn{width:100%; margin-top:18px; font-size:20px; min-height:56px}
+
+  /* ---------- Spill ---------- */
+  #game{position:fixed; inset:0; display:flex; flex-direction:column}
+  .half{
+    flex:1; position:relative; display:flex; flex-direction:column; min-height:0;
+    padding:12px 14px; transition:background .25s, opacity .25s;
+    background:var(--panel);
+  }
+  .half.p2{transform:rotate(180deg); padding-top:calc(12px + env(safe-area-inset-bottom)); }
+  .half.p1{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+  .half.p1{--pc:var(--p1)} .half.p2{--pc:var(--p2)}
+  .half.active{background:color-mix(in srgb, var(--pc) 18%, var(--panel)); box-shadow:inset 0 0 0 4px var(--pc)}
+  .half.flash-good{background:color-mix(in srgb, var(--good) 45%, var(--panel)) !important}
+  .half.flash-bad{animation:shake .35s}
+  @keyframes shake{0%,100%{translate:0} 25%{translate:-10px} 75%{translate:10px}}
+
+  .hud{display:flex; align-items:center; gap:10px; font-weight:700}
+  .hud .name{color:var(--pc); font-size:18px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:35%}
+  .prog{flex:1; display:flex; gap:4px; flex-wrap:wrap; justify-content:center}
+  .dot{width:12px; height:12px; border-radius:50%; background:#323a63}
+  .dot.ok{background:var(--good)} .dot.skip{background:var(--skip)} .dot.now{box-shadow:0 0 0 2px var(--pc)}
+  .clock{font-variant-numeric:tabular-nums; font-size:18px; min-width:70px; text-align:right}
+
+  .stage{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; min-height:0; text-align:center}
+  .status{color:var(--muted); font-weight:700; font-size:16px; min-height:20px}
+  .problem{
+    font-weight:800; line-height:1.05; white-space:nowrap; font-variant-numeric:tabular-nums;
+    font-size:min(11vh, 22vw, calc(150vw / var(--len, 5)));
+  }
+  .problem .q{color:var(--muted)}
+  .half:not(.active) .problem{font-size:min(5vh, 9vw, calc(70vw / var(--len,5))); color:var(--muted)}
+  .heard{min-height:28px; font-size:20px; color:var(--muted)}
+  .heard.bad{color:var(--bad)} .heard.good{color:var(--good); font-weight:800}
+
+  .actions{display:flex; gap:8px; justify-content:center}
+  .actions button{font-size:14px}
+  .half:not(.active) .skip, .half.active .approve{display:none}
+  .half:not(.active) .keypad{display:none}
+
+  .keypad{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin:6px auto; width:min(100%,380px)}
+  .keypad button{min-height:min(6.5vh,52px); font-size:22px; padding:4px}
+  .typed{font-size:min(6vh,32px); font-weight:800; min-height:1.2em; letter-spacing:2px}
+
+  .mid{
+    flex:0 0 auto; height:46px; display:flex; align-items:center; justify-content:center; gap:10px;
+    background:#0b0d18; border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+  }
+  .mic{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); font-weight:700}
+  .mic i{width:12px; height:12px; border-radius:50%; background:#555; display:inline-block}
+  .mic.on i{background:var(--bad); animation:pulse 1.2s infinite}
+  @keyframes pulse{50%{opacity:.35}}
+  .mid button{min-height:34px; padding:4px 12px; font-size:14px}
+
+  .overlay{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:10px; text-align:center; padding:16px; background:var(--panel); z-index:3;
+  }
+  .overlay .big{font-size:min(20vh,40vw); font-weight:900; color:var(--pc)}
+  .overlay h2{margin:0; font-size:min(6vh,34px)}
+  .overlay .stats{color:var(--muted); font-size:min(2.6vh,17px); line-height:1.6}
+  .overlay .stats b{color:var(--text)}
+
+  #pause{position:fixed; inset:0; background:rgba(5,6,12,.85); display:flex; align-items:center; justify-content:center; gap:12px; z-index:10}
+  #pause button{font-size:20px; min-height:60px; padding:10px 24px}
+</style>
+</head>
+<body>
+
+<!-- ============ OPPSETT ============ -->
+<div id="setup">
+  <div class="card">
+    <h1>🧮 Mattekamp</h1>
+    <p class="lead">To spillere. Legg telefonen flatt mellom dere. Oppgavene kommer opp på hver sin side, én om gangen. <b>Si svaret høyt</b>, så går turen automatisk videre når svaret er riktig. Den som bruker kortest tid totalt, vinner.</p>
+
+    <div class="players">
+      <div class="pbox p1">
+        <label for="n1">Spiller 1 (denne siden)</label>
+        <input id="n1" value="Spiller 1" maxlength="14" />
+        <label for="g1">Nivå</label>
+        <select id="g1"></select>
+      </div>
+      <div class="pbox p2">
+        <label for="n2">Spiller 2 (motsatt side)</label>
+        <input id="n2" value="Spiller 2" maxlength="14" />
+        <label for="g2">Nivå</label>
+        <select id="g2"></select>
+      </div>
+    </div>
+    <p class="note" id="gradeInfo"></p>
+
+    <div class="row">
+      <label>Oppgaver per spiller</label>
+      <div class="seg" id="countSeg">
+        <button data-v="5">5</button><button data-v="10" class="on">10</button><button data-v="15">15</button><button data-v="20">20</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <label>Svar med</label>
+      <div class="seg" id="modeSeg">
+        <button data-v="voice" class="on">🎤 Stemme</button><button data-v="keys">⌨️ Tastatur</button>
+      </div>
+    </div>
+
+    <div id="srWarn" class="warn hidden"></div>
+
+    <button id="startBtn" class="primary">Start!</button>
+
+    <p class="note">
+      Tips: Lås skjermrotasjonen på telefonen. Feil svar gir ingen straff, men klokka går. «Hopp over» gir +5 sekunder.
+      Hvis mikrofonen ikke oppfatter et riktig svar, kan motstanderen trykke «✓ Godkjenn».
+      Talegjenkjenning fungerer best i Chrome (Android) og Safari (iPhone), og siden må åpnes via https.
+    </p>
+  </div>
+</div>
+
+<!-- ============ SPILL ============ -->
+<div id="game" class="hidden">
+  <section class="half p2" data-p="1"></section>
+  <div class="mid">
+    <span class="mic" id="mic"><i></i><span id="micTxt">Mikrofon av</span></span>
+    <button id="pauseBtn">⏸ Pause</button>
+  </div>
+  <section class="half p1" data-p="0"></section>
+</div>
+
+<div id="pause" class="hidden">
+  <button id="resumeBtn" class="primary">▶ Fortsett</button>
+  <button id="quitBtn">✕ Avslutt</button>
+</div>
+
+<script>
+'use strict';
+
+/* =========================================================
+   1. Oppgavegenerator – 1. til 10. klasse
+   ========================================================= */
+const R = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+const pick = arr => arr[R(0, arr.length - 1)];
+const fmt = n => (n < 0 ? '−' + (-n) : String(n));
+const par = n => (n < 0 ? '(−' + (-n) + ')' : String(n));
+const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+const sup = n => String(n).split('').map(d => SUP[d]).join('');
+const P = (q, a, eq) => ({ q, a, eq: !!eq });
+
+const GRADES = [
+  null,
+  { name: '1. klasse', info: 'Pluss og minus opp til 10',
+    gen: [
+      () => { const a = R(1, 9), b = R(1, 10 - a); return P(`${a} + ${b}`, a + b); },
+      () => { const a = R(2, 10), b = R(1, a); return P(`${a} − ${b}`, a - b); },
+    ] },
+  { name: '2. klasse', info: 'Pluss og minus opp til 20, hele tiere, dobling',
+    gen: [
+      () => { const a = R(3, 15), b = R(2, 20 - a); return P(`${a} + ${b}`, a + b); },
+      () => { const a = R(8, 20), b = R(2, a - 1); return P(`${a} − ${b}`, a - b); },
+      () => { const a = 10 * R(1, 8), b = 10 * R(1, 9 - a / 10); return P(`${a} + ${b}`, a + b); },
+      () => { const n = R(2, 10); return P(`${n} + ${n}`, 2 * n); },
+    ] },
+  { name: '3. klasse', info: 'Pluss og minus opp til 100, 2-, 5- og 10-gangen',
+    gen: [
+      () => { const a = R(11, 89), b = R(2, 9); return P(`${a} + ${b}`, a + b); },
+      () => { const a = R(12, 99), b = R(2, 9); return P(`${a} − ${b}`, a - b); },
+      () => { const a = R(11, 59), b = 10 * R(1, 4); return P(`${a} + ${b}`, a + b); },
+      () => { const f = pick([2, 5, 10]), n = R(1, 10); return Math.random() < .5 ? P(`${f} × ${n}`, f * n) : P(`${n} × ${f}`, f * n); },
+    ] },
+  { name: '4. klasse', info: 'Hele gangetabellen, enkel deling, tosifret pluss/minus',
+    gen: [
+      () => { const a = R(2, 10), b = R(2, 10); return P(`${a} × ${b}`, a * b); },
+      () => { const a = R(2, 10), b = R(2, 10); return P(`${a} × ${b}`, a * b); },
+      () => { const b = R(2, 10), x = R(2, 10); return P(`${b * x} : ${b}`, x); },
+      () => { const a = R(11, 60), b = R(11, 39); return P(`${a} + ${b}`, a + b); },
+      () => { const a = R(30, 99), b = R(11, a - 5); return P(`${a} − ${b}`, a - b); },
+    ] },
+  { name: '5. klasse', info: 'Gangetabell, deling, ganging med 10 og 100, runde tall',
+    gen: [
+      () => { const a = R(3, 10), b = R(3, 10); return P(`${a} × ${b}`, a * b); },
+      () => { const b = R(3, 10), x = R(3, 10); return P(`${b * x} : ${b}`, x); },
+      () => { const a = R(2, 99), m = pick([10, 100]); return P(`${a} × ${m}`, a * m); },
+      () => { const a = 10 * R(10, 60), b = 10 * R(5, 30); return P(`${a} + ${b}`, a + b); },
+      () => { const a = 10 * R(30, 90), b = 10 * R(5, a / 10 - 5); return P(`${a} − ${b}`, a - b); },
+    ] },
+  { name: '6. klasse', info: 'Tosifret × ensifret, deling, 11- og 12-gangen',
+    gen: [
+      () => { const a = R(11, 25), b = R(2, 9); return P(`${a} × ${b}`, a * b); },
+      () => { const b = R(2, 9), x = R(11, 25); return P(`${b * x} : ${b}`, x); },
+      () => { const a = R(3, 12), b = R(3, 12); return P(`${a} × ${b}`, a * b); },
+      () => { const n = 10 * R(2, 90); return P(`${n} : 10`, n / 10); },
+      () => { const n = 10 * R(5, 95); return P(`1000 − ${n}`, 1000 - n); },
+    ] },
+  { name: '7. klasse', info: 'Negative tall, enkle prosenter, kvadrattall, regnerekkefølge',
+    gen: [
+      () => { const a = R(-10, 10), b = R(-10, 10); return P(`${fmt(a)} + ${par(b)}`, a + b); },
+      () => { const a = R(1, 9), b = R(a + 1, 15); return P(`${a} − ${b}`, a - b); },
+      () => { const p = pick([10, 50, 25]); const base = p === 10 ? 10 * R(2, 30) : p === 50 ? 2 * R(5, 60) : 4 * R(2, 30); return P(`${p} % av ${base}`, base * p / 100); },
+      () => { const n = R(2, 12); return P(`${n}²`, n * n); },
+      () => { const a = R(6, 12), b = R(6, 12); return P(`${a} · ${b}`, a * b); },
+      () => { const a = R(1, 10), b = R(2, 6), c = R(2, 6); return P(`${a} + ${b} · ${c}`, a + b * c); },
+    ] },
+  { name: '8. klasse', info: 'Kvadrater og kvadratrøtter, prosent, regnerekkefølge, negative tall',
+    gen: [
+      () => { const n = R(2, 15); return P(`${n}²`, n * n); },
+      () => { const n = R(2, 15); return P(`√${n * n}`, n); },
+      () => { const p = pick([5, 10, 20, 25, 50, 75]); const step = 100 / gcd(p, 100); const base = step * R(2, Math.max(3, Math.floor(400 / step))); return P(`${p} % av ${base}`, base * p / 100); },
+      () => { const a = R(2, 9), b = R(2, 9), c = R(2, 6); return P(`(${a} + ${b}) · ${c}`, (a + b) * c); },
+      () => { const a = R(2, 9), b = R(2, 9), c = R(1, 20); return P(`${a} · ${b} − ${c}`, a * b - c); },
+      () => { const a = R(2, 9), b = R(2, 9); return P(`(−${a}) · ${b}`, -a * b); },
+      () => { const a = R(12, 39), b = R(2, 9); return P(`${a} · ${b}`, a * b); },
+    ] },
+  { name: '9. klasse', info: 'Potenser, enkle likninger, negative tall, prosent',
+    gen: [
+      () => { const [g, e] = pick([[2, R(2, 8)], [3, R(2, 4)], [5, R(2, 3)], [10, R(2, 4)]]); return P(`${g}${sup(e)}`, g ** e); },
+      () => { const x = R(1, 12), a = R(2, 9), b = R(1, 20); return P(`${a}x + ${b} = ${a * x + b}`, x, true); },
+      () => { const a = R(2, 9), b = R(2, 9); return P(`(−${a}) · (−${b})`, a * b); },
+      () => { const a = R(1, 15), b = R(1, 15); return P(`${a} − (−${b})`, a + b); },
+      () => { const p = pick([10, 20, 25, 30, 40, 75]); const step = 100 / gcd(p, 100); const base = step * R(2, Math.max(3, Math.floor(600 / step))); return P(`${p} % av ${base}`, base * p / 100); },
+      () => { const n = R(4, 20); return P(`√${n * n}`, n); },
+    ] },
+  { name: '10. klasse', info: 'Likninger, potenser, kvadratrøtter, prosentvis endring',
+    gen: [
+      () => { let x; do { x = R(-9, 12); } while (x === 0); const a = R(2, 9), b = R(1, 20), c = a * x - b; return P(`${a}x − ${b} = ${fmt(c)}`, x, true); },
+      () => { const a = R(2, 6), k = R(1, 10), b = R(1, 12); return P(`x/${a} + ${b} = ${k + b}`, a * k, true); },
+      () => { const n = R(3, 15); return P(`x² = ${n * n},  x > 0`, n, true); },
+      () => { const a = R(3, 12), b = R(1, a - 1); return P(`${a}² − ${b}²`, a * a - b * b); },
+      () => { const a = R(2, 3), e = R(2, 4), m = R(2, 9); return P(`${a}${sup(e)} · ${m}`, (a ** e) * m); },
+      () => { const p = pick([10, 20, 50]), base = 10 * R(2, 30); return P(`${base} økt med ${p} %`, base * (100 + p) / 100); },
+      () => { const p = pick([10, 20, 50]), base = 10 * R(2, 30); return P(`${base} redusert med ${p} %`, base * (100 - p) / 100); },
+      () => { const n = R(5, 25); return P(`√${n * n}`, n); },
+    ] },
+];
+function gcd(a, b) { return b ? gcd(b, a % b) : a; }
+function makeProblem(grade, prevQ) {
+  let p, tries = 0;
+  do { p = pick(GRADES[grade].gen)(); } while ((p.q === prevQ || !Number.isInteger(p.a)) && ++tries < 30);
+  return p;
+}
+
+/* =========================================================
+   2. Tolking av norske tallord («seksti fire», «fire og seksti», «64» …)
+   ========================================================= */
+const NUM = {
+  null: 0, en: 1, 'én': 1, ett: 1, ei: 1, to: 2, tre: 3, fire: 4, fem: 5, seks: 6, sex: 6, sju: 7, syv: 7,
+  'åtte': 8, ni: 9, ti: 10, elleve: 11, tolv: 12, tretten: 13, fjorten: 14, femten: 15, seksten: 16,
+  sytten: 17, atten: 18, nitten: 19, tjue: 20, tyve: 20, tju: 20, tretti: 30, tredve: 30, 'førti': 40,
+  femti: 50, seksti: 60, sytti: 70, 'søtti': 70, 'åtti': 80, nitti: 90, hundre: 100, hundrede: 100, tusen: 1000,
+};
+const KEYS = Object.keys(NUM).concat(['og', 'minus']).sort((a, b) => b.length - a.length);
+
+function segment(word, i = 0) {           // deler opp sammensatte ord: «sekstifire» → [seksti, fire]
+  if (i === word.length) return [];
+  for (const k of KEYS) {
+    if (word.startsWith(k, i)) {
+      const rest = segment(word, i + k.length);
+      if (rest) return [k, ...rest];
+    }
+  }
+  return null;
+}
+const kindOf = v => v === 100 || v === 1000 ? 'mult' : v < 10 ? 'unit' : v < 20 ? 'teen' : (v < 100 && v % 10 === 0) ? 'tens' : 'complete';
+
+/** Returnerer alle tall som kan leses ut av en setning. */
+function parseNumbers(text) {
+  let t = String(text).toLowerCase()
+    .replace(/[−–—]/g, '-')
+    .replace(/(\d)[\s.  ](?=\d{3}\b)/g, '$1')   // «10 000» → «10000»
+    .replace(/(\d),(\d)/g, '$1.$2');
+  const words = t.split(/[^0-9a-zæøåé.\-]+/).filter(Boolean);
+  const toks = [];
+  for (let w of words) {
+    w = w.replace(/^\.+|\.+$/g, '');
+    if (!w) continue;
+    const m = w.match(/^(-?)(\d+(?:\.\d+)?)$/);
+    if (m) { if (m[1]) toks.push('minus'); toks.push(Number(m[2])); continue; }
+    if (w === '-') { toks.push('minus'); continue; }
+    const seg = segment(w.replace(/-/g, ''));
+    if (seg) seg.forEach(s => toks.push(s === 'og' || s === 'minus' ? s : NUM[s]));
+    else toks.push(null);                 // vanlig ord – bryter et tall
+  }
+  const out = [];
+  let cur = null, prev = null, og = false, minus = false;
+  const close = () => { if (cur) out.push((cur.total + cur.current) * (cur.neg ? -1 : 1)); cur = null; prev = null; };
+  for (const tok of toks) {
+    if (tok === 'minus') { close(); minus = true; og = false; continue; }
+    if (tok === 'og') { if (cur) og = true; continue; }
+    if (tok === null) { close(); og = false; minus = false; continue; }
+    const v = tok, k = kindOf(v);
+    const compose = cur && (
+      k === 'mult' || prev === 'mult' ||
+      (prev === 'tens' && k === 'unit') ||
+      (prev === 'unit' && k === 'tens' && og)           // «fire og seksti»
+    );
+    if (!compose) { close(); cur = { total: 0, current: 0, neg: minus }; minus = false; }
+    if (v === 100) cur.current = (cur.current || 1) * 100;
+    else if (v === 1000) { cur.total += (cur.current || 1) * 1000; cur.current = 0; }
+    else cur.current += v;
+    prev = k; og = false;
+  }
+  close();
+  return out;
+}
+
+/* =========================================================
+   3. Lyd og skjerm-lås
+   ========================================================= */
+let actx = null;
+function beep(freqs, dur = .12) {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    let t = actx.currentTime;
+    for (const f of freqs) {
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.frequency.value = f; o.type = 'sine';
+      g.gain.setValueAtTime(.18, t); g.gain.exponentialRampToValueAtTime(.001, t + dur);
+      o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur);
+      t += dur * .8;
+    }
+  } catch (e) {}
+}
+let wakeLock = null;
+async function keepAwake(on) {
+  try {
+    if (on && 'wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+    else if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && G.running) keepAwake(true); });
+
+/* =========================================================
+   4. Talegjenkjenning
+   ========================================================= */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const Voice = {
+  rec: null, wanted: false, minIndex: 0,
+  start() {
+    if (!SR) return;
+    this.wanted = true;
+    if (!this.rec) {
+      const r = new SR();
+      r.lang = 'nb-NO'; r.continuous = true; r.interimResults = true; r.maxAlternatives = 5;
+      r.onstart = () => { this.minIndex = 0; setMic(true); };
+      r.onend = () => { setMic(false); if (this.wanted) setTimeout(() => this._go(), 120); };
+      r.onerror = e => {
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+          this.wanted = false;
+          micDenied();
+        }
+      };
+      r.onresult = e => onSpeech(e);
+      this.rec = r;
+    }
+    this._go();
+  },
+  _go() { try { this.rec.start(); } catch (e) {} },
+  stop() { this.wanted = false; if (this.rec) try { this.rec.abort(); } catch (e) {} setMic(false); },
+};
+function setMic(on) {
+  $('#mic').classList.toggle('on', on);
+  $('#micTxt').textContent = on ? 'Lytter …' : (G.mode === 'keys' ? 'Tastatur' : 'Mikrofon av');
+}
+
+function onSpeech(e) {
+  const p = G.running && !G.paused && G.awaiting ? G.players[G.turn] : null;
+  if (!p) { Voice.minIndex = e.results.length; return; }   // ignorer prat mellom oppgavene
+  for (let i = Math.max(Voice.minIndex, e.resultIndex); i < e.results.length; i++) {
+    const res = e.results[i];
+    const heard = res[0].transcript.trim();
+    showHeard(G.turn, heard ? `«${heard}»` : '', '');
+    for (let j = 0; j < res.length; j++) {
+      if (parseNumbers(res[j].transcript).includes(p.cur.a)) {
+        Voice.minIndex = i + 1;
+        correct(G.turn, heard);
+        return;
+      }
+    }
+    if (res.isFinal) {
+      Voice.minIndex = i + 1;
+      const nums = parseNumbers(heard);
+      if (nums.length) wrong(G.turn, `«${heard}» – ikke riktig`);
+    }
+  }
+}
+
+/* =========================================================
+   5. Spillogikk
+   ========================================================= */
+const $ = s => document.querySelector(s);
+const halves = [$('.half.p1'), $('.half.p2')];
+const G = { players: [], turn: 0, count: 10, mode: 'voice', running: false, paused: false, awaiting: false, starter: 0, timer: null };
+
+function halfTemplate() {
+  return `
+    <div class="hud"><span class="name"></span><div class="prog"></div><span class="clock">0,0 s</span></div>
+    <div class="stage">
+      <div class="status"></div>
+      <div class="problem"></div>
+      <div class="heard"></div>
+      <div class="typed hidden"></div>
+    </div>
+    <div class="keypad hidden">
+      ${[7, 8, 9, '⌫', 4, 5, 6, '−', 1, 2, 3, 0].map(k => `<button data-k="${k}">${k}</button>`).join('')}
+    </div>
+    <div class="actions">
+      <button class="skip">⏭ Hopp over (+5 s)</button>
+      <button class="approve">✓ Godkjenn motstanderens svar</button>
+    </div>
+    <div class="overlay hidden"></div>`;
+}
+halves.forEach((h, i) => {
+  h.innerHTML = halfTemplate();
+  h.querySelector('.skip').onclick = () => skip(i);
+  h.querySelector('.approve').onclick = () => { if (G.turn !== i && G.awaiting) correct(G.turn, 'godkjent av motstander'); };
+  h.querySelectorAll('.keypad button').forEach(b => b.onclick = () => keyPress(i, b.dataset.k));
+});
+const q = (i, sel) => halves[i].querySelector(sel);
+
+function showHeard(i, text, cls) {
+  const el = q(i, '.heard'); el.textContent = text; el.className = 'heard ' + (cls || '');
+}
+
+function render() {
+  G.players.forEach((p, i) => {
+    const h = halves[i], active = G.turn === i && G.running;
+    h.classList.toggle('active', active);
+    q(i, '.name').textContent = p.name;
+    q(i, '.prog').innerHTML = Array.from({ length: G.count }, (_, k) =>
+      `<span class="dot ${p.log[k] || ''} ${k === p.done && active ? 'now' : ''}"></span>`).join('');
+    q(i, '.clock').textContent = fmtTime(p.time + (active && G.awaiting && !G.paused ? performance.now() - G.turnStart : 0));
+    const prob = q(i, '.problem'), st = q(i, '.status');
+    const keys = G.mode === 'keys';
+    q(i, '.keypad').classList.toggle('hidden', !keys);
+    q(i, '.typed').classList.toggle('hidden', !keys || !active);
+    if (p.done >= G.count) {
+      st.textContent = 'Ferdig! 🎉'; prob.textContent = ''; showHeard(i, '', '');
+    } else if (active) {
+      st.textContent = keys ? 'Din tur! Tast svaret' : 'Din tur! Si svaret høyt 🎤';
+      setProblem(prob, p.cur);
+    } else {
+      const o = G.players[G.turn];
+      st.textContent = `Vent – ${o.name} regner:`;
+      if (o.cur && o.done < G.count) { setProblem(prob, o.cur); showHeard(i, `Fasit: ${fmt(o.cur.a)}`, ''); }
+    }
+  });
+}
+function setProblem(el, p) {
+  const text = p.eq ? `${p.q}` : `${p.q} = `;
+  el.style.setProperty('--len', Math.max(4, text.length + (p.eq ? 0 : 1)));
+  el.innerHTML = p.eq ? `${esc(p.q)}<div style="font-size:.5em" class="q">x = ?</div>` : `${esc(p.q)} = <span class="q">?</span>`;
+}
+const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const fmtTime = ms => (ms / 1000).toFixed(1).replace('.', ',') + ' s';
+
+function startGame() {
+  G.count = +$('#countSeg .on').dataset.v;
+  G.mode = $('#modeSeg .on').dataset.v;
+  if (!SR) G.mode = 'keys';
+  G.players = [0, 1].map(i => ({
+    name: ($('#n' + (i + 1)).value.trim() || `Spiller ${i + 1}`),
+    grade: +$('#g' + (i + 1)).value,
+    done: 0, correct: 0, skipped: 0, wrong: 0, time: 0, log: [], cur: null, typed: '',
+  }));
+  G.players.forEach(p => p.cur = makeProblem(p.grade));
+  G.turn = G.starter; G.running = true; G.paused = false; G.awaiting = false;
+  try { localStorage.setItem('mattekamp', JSON.stringify({ n1: $('#n1').value, n2: $('#n2').value, g1: $('#g1').value, g2: $('#g2').value, c: G.count, m: G.mode })); } catch (e) {}
+
+  $('#setup').classList.add('hidden'); $('#game').classList.remove('hidden');
+  halves.forEach(h => h.querySelector('.overlay').classList.add('hidden'));
+  goFullscreen();
+  keepAwake(true);
+  beep([1]); // låser opp lyd på iOS
+  if (G.mode === 'voice') Voice.start(); else setMic(false);
+  render();
+  countdown(3);
+}
+
+function countdown(n) {
+  halves.forEach((h, i) => {
+    const o = h.querySelector('.overlay');
+    o.classList.remove('hidden');
+    const first = G.players[G.turn].name;
+    o.innerHTML = `<div class="big">${n || 'Kjør!'}</div><div class="stats">${first} starter</div>`;
+  });
+  if (n > 0) { beep([440], .1); setTimeout(() => G.running && countdown(n - 1), 800); }
+  else { beep([880], .2); setTimeout(() => { halves.forEach(h => h.querySelector('.overlay').classList.add('hidden')); beginTurn(); }, 450); }
+}
+
+function beginTurn() {
+  if (!G.running) return;
+  const p = G.players[G.turn];
+  p.typed = ''; q(G.turn, '.typed').textContent = '';
+  showHeard(G.turn, '', '');
+  G.awaiting = true;
+  G.turnStart = performance.now();
+  render();
+  clearInterval(G.timer);
+  G.timer = setInterval(() => { if (!G.paused && G.awaiting) q(G.turn, '.clock').textContent = fmtTime(p.time + performance.now() - G.turnStart); }, 100);
+}
+function finishTurn(i, outcome, penalty = 0) {
+  const p = G.players[i];
+  G.awaiting = false;
+  clearInterval(G.timer);
+  p.time += performance.now() - G.turnStart + penalty;
+  p.log[p.done] = outcome;
+  p.done++;
+  p.cur = p.done < G.count ? makeProblem(p.grade, p.cur.q) : p.cur;
+}
+
+function correct(i, heard) {
+  if (!G.awaiting || G.turn !== i) return;
+  const ans = G.players[i].cur.a;
+  finishTurn(i, 'ok');
+  G.players[i].correct++;
+  beep([660, 990]);
+  halves[i].classList.add('flash-good');
+  render();
+  showHeard(i, `✓ ${fmt(ans)} er riktig!`, 'good');
+  setTimeout(() => { halves[i].classList.remove('flash-good'); nextTurn(); }, 750);
+}
+
+function wrong(i, text) {
+  G.players[i].wrong++;
+  showHeard(i, text, 'bad');
+  beep([220], .15);
+  const h = halves[i]; h.classList.remove('flash-bad'); void h.offsetWidth; h.classList.add('flash-bad');
+}
+
+function skip(i) {
+  if (!G.awaiting || G.turn !== i) return;
+  const ans = G.players[i].cur.a;
+  finishTurn(i, 'skip', 5000);
+  G.players[i].skipped++;
+  render();
+  showHeard(i, `Svaret var ${fmt(ans)}  (+5 s)`, 'bad');
+  setTimeout(nextTurn, 1400);
+}
+
+function nextTurn() {
+  if (!G.running) return;
+  const [a, b] = G.players;
+  if (a.done >= G.count && b.done >= G.count) return finish();
+  const other = 1 - G.turn;
+  if (G.players[other].done < G.count) G.turn = other;
+  beginTurn();
+}
+
+function keyPress(i, k) {
+  if (!G.awaiting || G.turn !== i || G.paused) return;
+  const p = G.players[i];
+  if (k === '⌫') p.typed = p.typed.slice(0, -1);
+  else if (k === '−') p.typed = p.typed.startsWith('-') ? p.typed.slice(1) : '-' + p.typed;
+  else if (p.typed.replace('-', '').length < 6) p.typed += k;
+  q(i, '.typed').textContent = p.typed.replace('-', '−') || '';
+  const target = String(p.cur.a);
+  if (p.typed === target) return correct(i, p.typed);
+  if (p.typed.length >= target.length && p.typed.replace('-', '').length >= target.replace('-', '').length && p.typed !== '-') {
+    wrong(i, `${p.typed.replace('-', '−')} – ikke riktig`);
+    p.typed = '';
+    setTimeout(() => { q(i, '.typed').textContent = ''; }, 300);
+  }
+}
+
+function finish() {
+  G.running = false; G.awaiting = false;
+  clearInterval(G.timer);
+  Voice.stop(); keepAwake(false);
+  render();
+  const [a, b] = G.players;
+  const diff = Math.abs(a.time - b.time);
+  const winner = diff < 50 ? -1 : (a.time < b.time ? 0 : 1);
+  beep([523, 659, 784, 1047], .15);
+  halves.forEach((h, i) => {
+    const me = G.players[i], o = h.querySelector('.overlay');
+    const title = winner === -1 ? 'Uavgjort! 🤝' : winner === i ? 'Du vant! 🏆' : `${esc(G.players[winner].name)} vant`;
+    o.innerHTML = `
+      <h2>${title}</h2>
+      ${winner !== -1 ? `<div class="stats">${winner === i ? 'Du var' : esc(G.players[winner].name) + ' var'} <b>${(diff / 1000).toFixed(1).replace('.', ',')} s</b> raskere</div>` : ''}
+      <div class="stats">
+        Din tid: <b>${fmtTime(me.time)}</b> · snitt <b>${fmtTime(me.time / G.count)}</b><br>
+        Riktige: <b>${me.correct}</b> · Hoppet over: <b>${me.skipped}</b> · Feil forsøk: <b>${me.wrong}</b><br>
+        Nivå: ${GRADES[me.grade].name}
+      </div>
+      <div style="display:flex;gap:10px;margin-top:6px">
+        <button class="primary again">↻ Spill igjen</button><button class="menu">Meny</button>
+      </div>`;
+    o.classList.remove('hidden');
+    o.querySelector('.again').onclick = () => { G.starter = 1 - G.starter; startGame(); };
+    o.querySelector('.menu').onclick = toMenu;
+  });
+}
+
+function toMenu() {
+  G.running = false; G.awaiting = false; G.paused = false;
+  clearInterval(G.timer); Voice.stop(); keepAwake(false);
+  $('#pause').classList.add('hidden');
+  $('#game').classList.add('hidden'); $('#setup').classList.remove('hidden');
+  try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
+}
+
+function pause(on) {
+  if (!G.running) return;
+  if (on && !G.paused) { G.paused = true; G.pausedAt = performance.now(); Voice.stop(); $('#pause').classList.remove('hidden'); }
+  else if (!on && G.paused) {
+    G.paused = false; G.turnStart += performance.now() - G.pausedAt;
+    $('#pause').classList.add('hidden');
+    if (G.mode === 'voice') Voice.start();
+  }
+}
+
+function micDenied() {
+  G.mode = 'keys';
+  setMic(false);
+  render();
+  alert('Fikk ikke tilgang til mikrofonen. Spillet bytter til tastatur. Gi nettleseren lov til å bruke mikrofonen for å svare med stemmen.');
+}
+
+function goFullscreen() {
+  const el = document.documentElement;
+  try {
+    const p = el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' }) : null;
+    if (p && p.then) p.then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('portrait').catch(() => {})).catch(() => {});
+  } catch (e) {}
+}
+
+/* =========================================================
+   6. Oppsett-skjerm
+   ========================================================= */
+['#g1', '#g2'].forEach(id => {
+  $(id).innerHTML = GRADES.slice(1).map((g, i) => `<option value="${i + 1}">${g.name}</option>`).join('');
+  $(id).value = 4;
+  $(id).onchange = gradeInfo;
+});
+function gradeInfo() {
+  const a = +$('#g1').value, b = +$('#g2').value;
+  $('#gradeInfo').innerHTML = a === b
+    ? `<b>${GRADES[a].name}:</b> ${GRADES[a].info}`
+    : `<b>${GRADES[a].name}:</b> ${GRADES[a].info}<br><b>${GRADES[b].name}:</b> ${GRADES[b].info}`;
+}
+document.querySelectorAll('.seg').forEach(seg => seg.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+}));
+try {
+  const s = JSON.parse(localStorage.getItem('mattekamp') || 'null');
+  if (s) {
+    $('#n1').value = s.n1; $('#n2').value = s.n2; $('#g1').value = s.g1; $('#g2').value = s.g2;
+    document.querySelectorAll('#countSeg button').forEach(b => b.classList.toggle('on', b.dataset.v == s.c));
+    document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === s.m));
+  }
+} catch (e) {}
+gradeInfo();
+if (!SR) {
+  $('#srWarn').classList.remove('hidden');
+  $('#srWarn').textContent = 'Denne nettleseren støtter ikke talegjenkjenning. Spillet bruker tastatur i stedet. Prøv Chrome på Android eller Safari på iPhone for å svare med stemmen.';
+  document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === 'keys'));
+}
+$('#startBtn').onclick = startGame;
+$('#pauseBtn').onclick = () => pause(true);
+$('#resumeBtn').onclick = () => pause(false);
+$('#quitBtn').onclick = toMenu;
+</script>
+</body>
+</html>
