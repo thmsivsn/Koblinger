@@ -45,6 +45,8 @@ public class MainActivity extends Activity implements RecognitionListener {
     private int skipWords = 0;
     private String lastHeard = "";
     private boolean sessionActive = false;
+    /** Språkene spilleren som har tur svarer på. Det første er hovedspråket. */
+    private String[] languages = {"nb-NO"};
 
     /** Ord gjenkjenneren bør være ekstra oppmerksom på (Android 13+). */
     private static final String[] BIAS = {
@@ -135,19 +137,42 @@ public class MainActivity extends Activity implements RecognitionListener {
 
     // ---------- Opplesing ----------
 
-    private void speak(String text) {
+    /** Enten ren tekst (tom = stopp) eller JSON: {"t": tekst, "l": språkkode}. */
+    private void speak(String raw) {
         if (tts == null || !ttsReady) {
             js("window.nativeTTSDone && window.nativeTTSDone()");
             return;
         }
         tts.stop();
-        if (text == null || text.isEmpty()) return;
+        if (raw == null || raw.isEmpty()) return;
+        String text = raw;
+        String lang = "nb-NO";
+        if (raw.startsWith("{")) {
+            try {
+                JSONObject o = new JSONObject(raw);
+                text = o.optString("t", "");
+                lang = o.optString("l", "nb-NO");
+            } catch (Exception ignored) { }
+        }
+        if (text.isEmpty()) return;
+        tts.setLanguage(Locale.forLanguageTag(lang));
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "u" + (++utterance));
     }
 
     // ---------- Talegjenkjenning ----------
 
     private void handleSpeech(String command) {
+        if (command.startsWith("lang:")) {
+            String[] next = command.substring(5).split(",");
+            if (next.length == 0 || next[0].isEmpty() || Arrays.equals(next, languages)) return;
+            languages = next;
+            // Nytt språk krever en ny lytteøkt.
+            if (wanted && recognizer != null) {
+                recognizer.cancel();
+                listen();
+            }
+            return;
+        }
         switch (command) {
             case "start":
                 wanted = true;
@@ -202,8 +227,12 @@ public class MainActivity extends Activity implements RecognitionListener {
     private void listen() {
         Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "nb-NO");
-        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "nb-NO");
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, languages[0]);
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, languages[0]);
+        if (languages.length > 1) {
+            // Ekstra språk for spillere med flere språk. Ikke alle telefoner støtter dette.
+            i.putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", Arrays.copyOfRange(languages, 1, languages.length));
+        }
         i.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
         i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5);
         i.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
@@ -211,7 +240,7 @@ public class MainActivity extends Activity implements RecognitionListener {
         i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L);
         i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L);
         i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 4000L);
-        if (Build.VERSION.SDK_INT >= 33) {
+        if (Build.VERSION.SDK_INT >= 33 && languages[0].startsWith("nb")) {
             i.putStringArrayListExtra(RecognizerIntent.EXTRA_BIASING_STRINGS, new ArrayList<>(Arrays.asList(BIAS)));
         }
         skipWords = 0;

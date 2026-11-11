@@ -65,6 +65,7 @@
   .seg button{flex:1; min-width:64px; min-height:46px; padding:6px 10px; border-radius:13px; font-weight:800; background:rgba(0,0,0,.25); border:1.5px solid var(--line); color:var(--muted)}
   .seg button.on{background:var(--cyan); color:var(--ink); border-color:transparent}
   .chips button.on{background:var(--green)}
+  .chips button{font-size:14px; min-width:0; padding:6px 8px}
 
   /* Avatarer */
   .av{width:var(--s,48px); height:var(--s,48px); border-radius:50%; overflow:hidden; display:inline-block; flex:none; box-shadow:0 0 0 3px rgba(255,255,255,.2), 0 6px 14px rgba(0,0,0,.35); vertical-align:middle}
@@ -299,6 +300,8 @@
     <div><p class="lbl">Alder</p><div class="stepper"><button id="ageDown" aria-label="Yngre">−</button><output id="edAge">10 år</output><button id="ageUp" aria-label="Eldre">＋</button></div></div>
     <div><p class="lbl">Nivå <span style="text-transform:none; letter-spacing:0">(foreslås ut fra alder)</span></p><select id="edGrade"></select><p class="note" id="edGradeInfo" style="margin-top:6px"></p></div>
   </div>
+  <div class="card"><p class="lbl">Språk</p><div class="seg" id="edLangs"></div>
+    <p class="note" style="margin-top:8px">Det første språket er det stemmen snakker og mikrofonen lytter på. Du kan velge flere.</p></div>
   <div class="card"><p class="lbl">Buzzer-lyd <span style="text-transform:none; letter-spacing:0">(trykk for å høre)</span></p><div class="bz" id="edBuzz"></div></div>
   <button class="btn green big" id="edSave">Lagre spiller</button>
   <button class="btn danger" id="edDelete">🗑 Slett spiller</button>
@@ -320,6 +323,8 @@
 <!-- ============ INNSTILLINGER ============ -->
 <div id="settings" class="screen"><div class="wrap">
   <div class="topbar"><button class="back" data-go="home" aria-label="Tilbake">‹</button><h2>Innstillinger</h2></div>
+  <div class="card"><p class="lbl">Språk i spillet</p><div class="seg" id="uiLang"></div>
+    <p class="note" style="margin-top:8px">Gjelder menyer og tekster. Hver spiller velger sitt eget språk for stemme og svar under Spillere.</p></div>
   <div class="card" id="setList"></div>
   <button class="btn danger" id="wipe">🗑 Slett alle spillere og kamper</button>
   <p class="note">Spillere, rekorder og kamper lagres bare på denne enheten.</p>
@@ -534,8 +539,30 @@ const NUM = {
   femti: 50, seksti: 60, sytti: 70, 'søtti': 70, 'åtti': 80, nitti: 90, hundre: 100, hundrede: 100, tusen: 1000,
   // dialekt og vanlige feiltolkninger fra talegjenkjenning
   ein: 1, tri: 3, sjau: 7, otte: 8, 'åtta': 8, nie: 9, tjuge: 20, kjue: 20, 'førr': 40,
+  // English
+  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+  thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30,
+  forty: 40, fourty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90, hundred: 100, thousand: 1000,
+  // Deutsch
+  eins: 1, eine: 1, zwei: 2, zwo: 2, drei: 3, vier: 4, 'fünf': 5, sechs: 6, sieben: 7, acht: 8, neun: 9, zehn: 10, elf: 11,
+  'zwölf': 12, dreizehn: 13, vierzehn: 14, 'fünfzehn': 15, sechzehn: 16, siebzehn: 17, achtzehn: 18, neunzehn: 19, zwanzig: 20,
+  'dreißig': 30, dreissig: 30, vierzig: 40, 'fünfzig': 50, sechzig: 60, siebzig: 70, achtzig: 80, neunzig: 90, hundert: 100, tausend: 1000,
 };
-const KEYS = Object.keys(NUM).concat(['og', 'minus']).sort((a, b) => b.length - a.length);
+const CONN = { og: 'og', and: 'og', und: 'og', minus: 'minus', negative: 'minus', negativ: 'minus' };
+const KEYS = Object.keys(NUM).concat(Object.keys(CONN)).sort((a, b) => b.length - a.length);
+/* Kinesiske tall: 六十四 → 64, 一百二十 → 120, 负五 → −5 */
+const ZH_D = { '零': 0, '〇': 0, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9 };
+const ZH_U = { '十': 10, '百': 100, '千': 1000 };
+function zhNum(str) {
+  if (!/[十百千万]/.test(str)) return Number([...str].map(ch => ZH_D[ch]).join(''));   // «六四» → 64
+  let total = 0, section = 0, num = 0;
+  for (const ch of str) {
+    if (ch in ZH_D) num = ZH_D[ch];
+    else if (ch in ZH_U) { section += (num || 1) * ZH_U[ch]; num = 0; }
+    else if (ch === '万') { total += (section + num || 1) * 10000; section = 0; num = 0; }
+  }
+  return total + section + num;
+}
 
 function segment(word, i = 0) {           // deler opp sammensatte ord: «sekstifire» → [seksti, fire]
   if (i === word.length) return [];
@@ -553,9 +580,11 @@ const kindOf = v => v === 100 || v === 1000 ? 'mult' : v < 10 ? 'unit' : v < 20 
 function parseNumbers(text) {
   let t = String(text).toLowerCase()
     .replace(/[−–—]/g, '-')
-    .replace(/(\d)[\s.  ](?=\d{3}\b)/g, '$1')   // «10 000» → «10000»
+    .replace(/(\d)[\s.,\u00a0\u202f](?=\d{3}\b)/g, '$1')   // «10 000» og «1,000» → uten skilletegn
+    .replace(/负\s*/g, ' -')
+    .replace(/[零〇一二两三四五六七八九十百千万]+/g, m => ' ' + zhNum(m) + ' ')
     .replace(/(\d),(\d)/g, '$1.$2');
-  const words = t.split(/[^0-9a-zæøåé.\-]+/).filter(Boolean);
+  const words = t.split(/[^0-9a-zæøåéäöüß.\-]+/).filter(Boolean);
   const toks = [];
   for (let w of words) {
     w = w.replace(/^\.+|\.+$/g, '');
@@ -564,7 +593,7 @@ function parseNumbers(text) {
     if (m) { if (m[1]) toks.push('minus'); toks.push(Number(m[2])); continue; }
     if (w === '-') { toks.push('minus'); continue; }
     const seg = segment(w.replace(/-/g, ''));
-    if (seg) seg.forEach(s => toks.push(s === 'og' || s === 'minus' ? s : NUM[s]));
+    if (seg) seg.forEach(s => toks.push(CONN[s] || NUM[s]));
     else toks.push(null);                 // vanlig ord – bryter et tall
   }
   const out = [];
@@ -603,7 +632,7 @@ function save() { try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catc
 const prof = id => DB.players.find(p => p.id === id);
 const gradeForAge = age => Math.max(1, Math.min(10, age - 5));
 function newProfile(name, age) {
-  return { id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, age, grade: gradeForAge(age), av: randAv(), buzz: Math.floor(Math.random() * 20), xp: 0, games: 0, wins: 0, best: 0 };
+  return { id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, age, grade: gradeForAge(age), av: randAv(), langs: [LANGS[DB.settings.lang] ? DB.settings.lang : 'nb'], buzz: Math.floor(Math.random() * 20), xp: 0, games: 0, wins: 0, best: 0 };
 }
 const RANKS = [[0, 'Nybegynner'], [100, 'Tallvenn'], [300, 'Regnerev'], [700, 'Tallknuser'], [1500, 'Mattehelt'], [3000, 'Mattemester'], [6000, 'Mattelegende']];
 function rankOf(xp) {
@@ -777,17 +806,25 @@ const Music = {
 const TTS_NATIVE = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.tts;
 let ttsDone = null;
 window.nativeTTSDone = () => { const f = ttsDone; ttsDone = null; if (f) f(); };
-function speak(text) {
+/* Språk: navn, flagg og talekode */
+const LANGS = {
+  nb: { name: 'Norsk', flag: '🇳🇴', loc: 'nb-NO' }, en: { name: 'English', flag: '🇬🇧', loc: 'en-US' },
+  de: { name: 'Deutsch', flag: '🇩🇪', loc: 'de-DE' }, zh: { name: '中文', flag: '🇨🇳', loc: 'zh-CN' },
+};
+const uiLang = () => (LANGS[DB.settings.lang] ? DB.settings.lang : 'nb');
+const langOf = p => (p && p.langs && LANGS[p.langs[0]] ? p.langs[0] : uiLang());
+function speak(text, lang) {
+  const loc = (LANGS[lang] || LANGS[uiLang()]).loc, pre = loc.slice(0, 2);
   return new Promise(res => {
     let done = false;
     const fin = () => { if (done) return; done = true; clearTimeout(to); res(); };
-    const to = setTimeout(fin, 2000 + text.length * 130);
+    const to = setTimeout(fin, 2000 + text.length * (pre === 'zh' ? 400 : 130));
     try {
-      if (TTS_NATIVE) { ttsDone = fin; TTS_NATIVE.postMessage(text); }
+      if (TTS_NATIVE) { ttsDone = fin; TTS_NATIVE.postMessage(JSON.stringify({ t: text, l: loc })); }
       else if ('speechSynthesis' in window) {
         speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(text); u.lang = 'nb-NO'; u.rate = 1.05;
-        const vs = speechSynthesis.getVoices().filter(v => /^(nb|no)/i.test(v.lang));
+        const u = new SpeechSynthesisUtterance(text); u.lang = loc; u.rate = 1.05;
+        const vs = speechSynthesis.getVoices().filter(v => v.lang.toLowerCase().startsWith(pre) || (pre === 'nb' && /^no/i.test(v.lang)));
         const v = vs.find(v => /natural|premium|enhanced|forbedret/i.test(v.name)) || vs.find(v => /google/i.test(v.name)) || vs[0]; if (v) u.voice = v;
         u.onend = fin; u.onerror = fin; speechSynthesis.speak(u);
       } else fin();
@@ -795,18 +832,50 @@ function speak(text) {
   });
 }
 function stopSpeak() { try { if (TTS_NATIVE) TTS_NATIVE.postMessage(''); else if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) {} }
-function speakable(p) {
-  let s = p.q.replace(/,\s*x > 0/, '')
-    .replace(/\(−(\d+)\)/g, 'minus $1').replace(/√(\d+)/g, 'kvadratroten av $1')
-    .replace(/(\d+|x)²/g, '$1 i andre').replace(/(\d+)³/g, '$1 i tredje')
-    .replace(/(\d+)([⁰¹⁴⁵⁶⁷⁸⁹]+)/g, (m, a, e) => `${a} opphøyd i ${[...e].map(ch => SUP.indexOf(ch)).join('')}`)
-    .replace(/\(/g, ' parentes ').replace(/\)/g, ' parentes slutt ')
-    .replace(/[×·]/g, ' ganger ').replace(/ : /g, ' delt på ').replace(/x\/(\d+)/g, 'x delt på $1')
-    .replace(/\+/g, ' pluss ').replace(/−/g, ' minus ').replace(/=/g, ' er lik ').replace(/%/g, ' prosent').replace(/(\d)x/g, '$1 x')
+/* Det stemmen sier, på spillerens språk */
+const SAY = {
+  nb: { times: 'ganger', div: 'delt på', plus: 'pluss', minus: 'minus', neg: 'minus', eq: 'er lik', lp: 'parentes', rp: 'parentes slutt', whatx: 'Hva er x?',
+    sqrt: n => `kvadratroten av ${n}`, pow: (a, e) => e == 2 ? `${a} i andre` : e == 3 ? `${a} i tredje` : `${a} opphøyd i ${e}`,
+    of: (p, b) => `${p} prosent av ${b}`, inc: (b, p) => `${b} økt med ${p} prosent`, dec: (b, p) => `${b} redusert med ${p} prosent`,
+    turn: n => `${n} sin tur.`, right: 'Riktig!', timeup: 'Tiden er ute.', ans: a => `Svaret var ${a}.`, won: (n, p) => `${n} vant med ${p} poeng!`, tie: 'Det ble uavgjort!' },
+  en: { times: 'times', div: 'divided by', plus: 'plus', minus: 'minus', neg: 'minus', eq: 'equals', lp: 'open bracket', rp: 'close bracket', whatx: 'What is x?',
+    sqrt: n => `the square root of ${n}`, pow: (a, e) => e == 2 ? `${a} squared` : e == 3 ? `${a} cubed` : `${a} to the power of ${e}`,
+    of: (p, b) => `${p} percent of ${b}`, inc: (b, p) => `${b} increased by ${p} percent`, dec: (b, p) => `${b} reduced by ${p} percent`,
+    turn: n => `${n}, your turn.`, right: 'Correct!', timeup: "Time's up.", ans: a => `The answer was ${a}.`, won: (n, p) => `${n} won with ${p} points!`, tie: "It's a tie!" },
+  de: { times: 'mal', div: 'geteilt durch', plus: 'plus', minus: 'minus', neg: 'minus', eq: 'gleich', lp: 'Klammer auf', rp: 'Klammer zu', whatx: 'Was ist x?',
+    sqrt: n => `die Wurzel aus ${n}`, pow: (a, e) => `${a} hoch ${e}`,
+    of: (p, b) => `${p} Prozent von ${b}`, inc: (b, p) => `${b} erhöht um ${p} Prozent`, dec: (b, p) => `${b} verringert um ${p} Prozent`,
+    turn: n => `${n} ist dran.`, right: 'Richtig!', timeup: 'Die Zeit ist um.', ans: a => `Die Antwort war ${a}.`, won: (n, p) => `${n} hat mit ${p} Punkten gewonnen!`, tie: 'Unentschieden!' },
+  zh: { times: '乘以', div: '除以', plus: '加', minus: '减', neg: '负', eq: '等于', lp: '括号', rp: '括号结束', whatx: 'x是多少？',
+    sqrt: n => `根号${n}`, pow: (a, e) => e == 2 ? `${a}的平方` : e == 3 ? `${a}的立方` : `${a}的${e}次方`,
+    of: (p, b) => `${b}的百分之${p}`, inc: (b, p) => `${b}增加百分之${p}`, dec: (b, p) => `${b}减少百分之${p}`,
+    turn: n => `轮到${n}了。`, right: '答对了！', timeup: '时间到。', ans: a => `答案是${a}。`, won: (n, p) => `${n}赢了，得了${p}分！`, tie: '平局！' },
+};
+const say = lang => SAY[lang] || SAY.nb;
+function speakable(p, lang) {
+  const w = say(lang), q = p.q; let m;
+  if ((m = q.match(/^(\d+) % av (\d+)$/))) return w.of(m[1], m[2]);
+  if ((m = q.match(/^(\d+) økt med (\d+) %$/))) return w.inc(m[1], m[2]);
+  if ((m = q.match(/^(\d+) redusert med (\d+) %$/))) return w.dec(m[1], m[2]);
+  const s = q.replace(/,\s*x > 0/, '').replace(/^−/, w.neg + ' ')
+    .replace(/\(−(\d+)\)/g, ` ${w.neg} $1 `).replace(/√(\d+)/g, (x, n) => w.sqrt(n))
+    .replace(/(\d+|x)²/g, (x, a) => w.pow(a, 2)).replace(/(\d+)³/g, (x, a) => w.pow(a, 3))
+    .replace(/(\d+)([⁰¹⁴⁵⁶⁷⁸⁹]+)/g, (x, a, e) => w.pow(a, [...e].map(ch => SUP.indexOf(ch)).join('')))
+    .replace(/\(/g, ` ${w.lp} `).replace(/\)/g, ` ${w.rp} `)
+    .replace(/[×·]/g, ` ${w.times} `).replace(/ : /g, ` ${w.div} `).replace(/x\/(\d+)/g, `x ${w.div} $1`)
+    .replace(/\+/g, ` ${w.plus} `).replace(/−/g, ` ${w.minus} `).replace(/=/g, ` ${w.eq} `).replace(/(\d)x/g, '$1 x')
     .replace(/\s+/g, ' ').trim();
-  return p.eq ? s + '. Hva er x?' : s;
+  return p.eq ? s + '. ' + w.whatx : s;
 }
-const sayNum = n => (n < 0 ? 'minus ' + (-n) : String(n));
+const sayNum = (n, lang) => (n < 0 ? say(lang).neg + ' ' + (-n) : String(n));
+/* Stykket slik det vises, på spillerens språk */
+function dispQ(q, lang) {
+  if (lang === 'nb' || !lang) return q;
+  const T = { en: ['$1 % of $2', '$1 increased by $2 %', '$1 reduced by $2 %'], de: ['$1 % von $2', '$1 erhöht um $2 %', '$1 verringert um $2 %'], zh: ['$2 的 $1 %', '$1 增加 $2 %', '$1 减少 $2 %'] }[lang];
+  if (!T) return q;
+  q = q.replace(/^(\d+) % av (\d+)$/, T[0]).replace(/^(\d+) økt med (\d+) %$/, T[1]).replace(/^(\d+) redusert med (\d+) %$/, T[2]);
+  return lang === 'de' ? q : q.replace(/ : /g, ' ÷ ');
+}
 
 let wakeLock = null;
 async function keepAwake(on) {
@@ -847,7 +916,8 @@ function fresh() {
 }
 function checkCmd(heard) {
   if (!IN.cmd) return false;
-  const c = /(^|\s)(pass|hopp over|vet ikke)(\s|$|[.,!?])/i.test(heard) ? 'pass' : /(^|\s)(gjenta|en gang til|si det igjen|igjen)(\s|$|[.,!?])/i.test(heard) ? 'repeat' : null;
+  const c = /(^|\s)(pass|hopp over|vet ikke|skip|next|weiter|keine ahnung)(\s|$|[.,!?])/i.test(heard) || /跳过|不知道|下一个/.test(heard) ? 'pass'
+    : /(^|\s)(gjenta|en gang til|si det igjen|igjen|repeat|again|nochmal|noch einmal|wiederholen)(\s|$|[.,!?])/i.test(heard) || /重复|再说一遍|再说一次/.test(heard) ? 'repeat' : null;
   if (!c) return false;
   const f = IN.cmd; fresh(); f(c); return true;
 }
@@ -892,7 +962,15 @@ const NATIVE = window.webkit && window.webkit.messageHandlers && window.webkit.m
 let Dict = null, dictNoLang = false;
 const canVoice = () => !!(NATIVE || Dict || (SR && !IN_ARTIFACT));
 const Voice = {
-  rec: null, wanted: false, minIndex: 0, len: 0,
+  rec: null, wanted: false, minIndex: 0, len: 0, langs: ['nb-NO'],
+  /* Bytt språket mikrofonen lytter på (spillerens språk, det første er hovedspråket) */
+  setLang(langs) {
+    const l = (langs && langs.length ? langs : [uiLang()]).map(k => (LANGS[k] || LANGS.nb).loc);
+    if (l.join() === this.langs.join()) return;
+    this.langs = l;
+    if (NATIVE) NATIVE.postMessage('lang:' + l.join(','));
+    else if (!Dict && this.rec && this.rec.lang !== l[0]) { this.rec.lang = l[0]; try { this.rec.abort(); } catch (e) {} }
+  },
   start() {
     if (NATIVE) { NATIVE.postMessage('start'); return; }
     if (Dict) return dictStart();
@@ -900,7 +978,7 @@ const Voice = {
     this.wanted = true;
     if (!this.rec) {
       const r = new SR();
-      r.lang = 'nb-NO'; r.continuous = true; r.interimResults = true; r.maxAlternatives = 5;
+      r.lang = this.langs[0]; r.continuous = true; r.interimResults = true; r.maxAlternatives = 5;
       r.onstart = () => { this.minIndex = 0; this.len = 0; setMic(true); };
       r.onend = () => { setMic(false); if (this.wanted) setTimeout(() => this._go(), 120); };
       r.onerror = e => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { this.wanted = false; micDenied(); } };
@@ -939,7 +1017,7 @@ window.nativeSpeech = (text, final, alt) => {
 };
 window.nativeSpeechState = st => { if (st === 'listening') setMic(true); else if (st === 'denied') micDenied(); else if (st === 'idle') setMic(false); else micHint(); };
 function dictStart() {
-  Dict.start(dictNoLang ? undefined : { language: 'nb' }).catch(err => {
+  Dict.start(dictNoLang ? undefined : { language: Voice.langs[0].slice(0, 2) }).catch(err => {
     const c = err && err.code;
     if (c === 'not_granted') return micDenied();
     if (c === 'unavailable') dictNoLang = true;
@@ -984,11 +1062,12 @@ document.addEventListener('click', e => {
   const go = e.target.closest('[data-go]');
   if (go) { sfx.click(); const id = go.dataset.go; RENDER[id] && RENDER[id](); show(id); }
 });
-function gp(p) { return { id: p.id, name: p.name, av: p.av, grade: p.grade, buzz: p.buzz || 0, done: 0, correct: 0, skipped: 0, wrong: 0, time: 0, log: [], cur: null, points: 0, penalties: 0, streak: 0, maxStreak: 0 }; }
-function setProblem(el, p) {
-  const text = p.eq ? p.q : p.q + ' = ?';
-  el.style.setProperty('--len', Math.max(4, text.length));
-  el.innerHTML = p.eq ? `${esc(p.q)}<div style="font-size:.5em" class="q">x = ?</div>` : `${esc(p.q)} = <span class="q">?</span>`;
+function gp(p) { return { id: p.id, name: p.name, av: p.av, grade: p.grade, buzz: p.buzz || 0, langs: p.langs && p.langs.length ? p.langs : [uiLang()], done: 0, correct: 0, skipped: 0, wrong: 0, time: 0, log: [], cur: null, points: 0, penalties: 0, streak: 0, maxStreak: 0 }; }
+function setProblem(el, p, lang) {
+  const q = dispQ(p.q, lang), text = p.eq ? q : q + ' = ?';
+  const wide = [...text].reduce((n, ch) => n + (ch > '\u2e7f' ? 1.8 : 1), 0);   // kinesiske tegn er bredere
+  el.style.setProperty('--len', Math.max(4, Math.ceil(wide)));
+  el.innerHTML = p.eq ? `${esc(q)}<div style="font-size:.5em" class="q">x = ?</div>` : `${esc(q)} = <span class="q">?</span>`;
 }
 function award(g, won) {
   const p = prof(g.id); if (!p) return 0;
@@ -1078,6 +1157,7 @@ function startDuel(profs, variant, count, grade) {
   Object.assign(D, { variant, count, players: profs.map(gp), starter: 1 - D.starter, awaiting: false, qIndex: 0, buzzer: -1, out: [false, false], between: false });
   D.turn = D.starter;
   if (variant === 'buzz') D.players.forEach(p => p.grade = grade); else D.players.forEach(p => p.cur = makeProblem(p.grade));
+  Voice.setLang(D.players[D.turn].langs);
   $('#duel').classList.toggle('buzz', variant === 'buzz'); $('#duel').classList.remove('answering');
   halves.forEach(h => { h.querySelector('.overlay').classList.add('hidden'); h.classList.remove('flash-good'); });
   beginGame('duel'); dRender();
@@ -1115,11 +1195,11 @@ function dRender() {
     dq(i, '.ear').classList.toggle('hidden', keys);
     const prob = dq(i, '.problem'), st = dq(i, '.status');
     if (p.done >= D.count) { st.textContent = 'Ferdig! 🎉'; prob.textContent = ''; dHeard(i, '', ''); }
-    else if (active) { st.textContent = !D.awaiting ? '' : keys ? 'Din tur! Tast svaret' : 'Din tur! Si svaret høyt 🎤'; setProblem(prob, p.cur); }
+    else if (active) { st.textContent = !D.awaiting ? '' : keys ? 'Din tur! Tast svaret' : 'Din tur! Si svaret høyt 🎤'; setProblem(prob, p.cur, langOf(p)); }
     else {
       const o = D.players[D.turn];
       st.textContent = D.awaiting ? `Vent – ${o.name} regner:` : `${o.name} er ferdig med stykket`;
-      if (o.cur && o.done < D.count) { setProblem(prob, o.cur); dHeard(i, DB.settings.showAns ? `Fasit: ${fmt(o.cur.a)}` : '', ''); }
+      if (o.cur && o.done < D.count) { setProblem(prob, o.cur, langOf(p)); dHeard(i, DB.settings.showAns ? `Fasit: ${fmt(o.cur.a)}` : '', ''); }
     }
   });
 }
@@ -1127,7 +1207,7 @@ function dTurn() {
   if (!G.running) return;
   const i = D.turn, p = D.players[i];
   if (p.needNew) { p.cur = makeProblem(p.grade, p.cur.q); p.needNew = false; }
-  dHeard(i, '', ''); fresh();
+  dHeard(i, '', ''); Voice.setLang(p.langs); fresh();
   D.awaiting = true; D.turnStart = performance.now();
   dListen(i, () => dCorrect(i));
   dRender();
@@ -1178,7 +1258,7 @@ function dBuzz(i) {
   if (!G.running || paused || D.variant !== 'buzz' || D.between || D.buzzer >= 0 || D.out[i] || !D.qIndex) return;
   D.qLeft = Math.max(5000, D.qLeft - (performance.now() - D.qArmedAt));
   clearTimeout(T.dQ);
-  D.buzzer = i; D.turn = i; fresh(); playBuzz(D.players[i].buzz);
+  D.buzzer = i; D.turn = i; Voice.setLang(D.players[i].langs); fresh(); playBuzz(D.players[i].buzz);
   dHeard(0, '', ''); dHeard(1, '', '');
   dAnswerWindow(i);
 }
@@ -1236,7 +1316,7 @@ function dRenderBuzz() {
     dq(i, '.ear').classList.toggle('hidden', keys);
     const st = dq(i, '.status');
     st.textContent = !G.running || D.between ? '' : active ? (keys ? 'Tast svaret – fort!' : 'Si svaret – nå! 🎤') : answering ? `${D.players[D.buzzer].name} svarer …` : D.out[i] ? 'Du er ute denne runden' : 'Trykk buzzeren når du kan svaret!';
-    if (p.cur) setProblem(dq(i, '.problem'), p.cur);
+    if (p.cur) setProblem(dq(i, '.problem'), p.cur, langOf(p));
     dq(i, '.buzzer').disabled = !G.running || D.between || answering || !!D.out[i];
   });
 }
@@ -1286,6 +1366,7 @@ function startRR(mode, profs, opt) {
   Object.assign(RR, { players: profs.map(gp), count: opt.count || 0, limit: opt.limit || 0, sprint: !!opt.sprint, idx: -1, turnNo: 0, sprintLeft: 60000, token: 0, speaking: false, done: false });
   RR.total = RR.sprint ? Infinity : RR.count * RR.players.length;
   RR.read = mode === 'party' || !!DB.settings.readAloud;
+  Voice.setLang(RR.players[0].langs);
   beginGame('rr'); rrRender();
   countdown(3, mode === 'party' ? `${RR.players[0].name} starter` : RR.sprint ? 'Så mange du klarer på 60 sekunder!' : 'Gjør deg klar!', rrNext);
 }
@@ -1295,6 +1376,7 @@ function rrNext() {
   RR.idx = (RR.idx + 1) % RR.players.length; RR.turnNo++;
   const p = RR.players[RR.idx];
   p.cur = makeProblem(p.grade, p.cur && p.cur.q);
+  Voice.setLang(p.langs);
   $('#rrMain').classList.remove('good'); rrHeard(''); $('#rrTyped').textContent = '';
   rrRender(); rrAsk(true);
 }
@@ -1304,7 +1386,7 @@ async function rrAsk(announce, force) {
   if (RR.read || force) {
     RR.speaking = true; $('#rrSub').textContent = '🔊 Hør etter …';
     if (announce && G.mode === 'party') { playBuzz(p.buzz); await sleep(500); if (tok !== RR.token || !G.running || paused) return; }
-    await speak((announce && RR.players.length > 1 ? `${p.name} sin tur. ` : '') + speakable(p.cur));
+    await speak((announce && RR.players.length > 1 ? say(langOf(p)).turn(p.name) + ' ' : '') + speakable(p.cur, langOf(p)), langOf(p));
     if (tok !== RR.token || !G.running || paused) return;
     RR.speaking = false; fresh(); await sleep(220);
     if (tok !== RR.token || !G.running || paused) return;
@@ -1351,7 +1433,7 @@ function rrCorrect() {
   p.points++; p.correct++; p.streak++; p.maxStreak = Math.max(p.maxStreak, p.streak);
   sfx.ok(); $('#rrMain').classList.add('good');
   rrRender(); rrHeard(`✓ ${fmt(p.cur.a)} er riktig!`, 'good');
-  (G.mode === 'party' ? speak('Riktig!') : sleep(550)).then(() => { if (tok === RR.token && G.running && !paused) rrNext(); });
+  (G.mode === 'party' ? speak(say(langOf(p)).right, langOf(p)) : sleep(550)).then(() => { if (tok === RR.token && G.running && !paused) rrNext(); });
 }
 function rrFinishClockAfterCorrect() {   // IN.on er allerede slått av når riktig svar meldes
   clearTimeout(T.rTimer); clearInterval(T.rTick);
@@ -1368,7 +1450,7 @@ function rrPass(reason) {
   if (RR.sprint && reason === 'time') { RR.sprintLeft = 0; return rrFinish(); }
   sfx.bad(); rrRender();
   rrHeard(`${reason === 'time' ? 'Tiden er ute!' : 'Pass.'} Svaret var ${fmt(p.cur.a)}`, 'bad');
-  (RR.read ? speak(`${reason === 'time' ? 'Tiden er ute. ' : ''}Svaret var ${sayNum(p.cur.a)}.`).then(() => sleep(300)) : sleep(1500))
+  (RR.read ? speak((reason === 'time' ? say(langOf(p)).timeup + ' ' : '') + say(langOf(p)).ans(sayNum(p.cur.a, langOf(p))), langOf(p)).then(() => sleep(300)) : sleep(1500))
     .then(() => { if (tok === RR.token && G.running && !paused) rrNext(); });
 }
 function rrRender() {
@@ -1382,7 +1464,7 @@ function rrRender() {
   if (!RR.sprint) $('#rrTitle').textContent = party ? `🎉 Runde ${Math.max(1, Math.ceil(RR.turnNo / RR.players.length))} av ${RR.count}` : `🎯 Oppgave ${Math.max(1, RR.turnNo)} av ${RR.count}`;
   else if (!RR.startAt) $('#rrTitle').textContent = `⏱ ${Math.ceil(Math.max(0, RR.sprintLeft) / 1000)} s`;
   $('#rrSub').textContent = RR.speaking ? '🔊 Hør etter …' : p.streak >= 2 ? `🔥 ${p.streak} på rad!` : party ? (keys ? 'Tast svaret' : 'Si svaret høyt') : `${GRADES[p.grade].name}`;
-  if (p.cur) setProblem($('#rrProb'), p.cur); else $('#rrProb').textContent = '';
+  if (p.cur) setProblem($('#rrProb'), p.cur, langOf(p)); else $('#rrProb').textContent = '';
   $('#rrScore').innerHTML = party
     ? RR.players.map((q, i) => `<span class="chip ${i === RR.idx ? 'now' : ''}">${av(q.av)}${q.points}</span>`).join('')
     : `<span class="chip">✅ ${p.points} riktige</span><span class="chip">🏅 Rekord ${prof(p.id) ? prof(p.id).best || 0 : 0}</span>`;
@@ -1412,7 +1494,7 @@ function rrFinish() {
     <span class="sc">${score(p)}<div class="xp">+${p.xp} XP</div></span></div>`).join('');
   try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
   show('results'); sfx.win(); if (party || record) confetti();
-  if (party) setTimeout(() => speak(tie ? 'Det ble uavgjort!' : `${top.name} vant med ${top.points} poeng!`), 900);
+  if (party) setTimeout(() => speak(tie ? say(uiLang()).tie : say(uiLang()).won(top.name, top.points), uiLang()), 900);
 }
 $('#resAgain').onclick = () => G.again && G.again();
 
@@ -1427,7 +1509,7 @@ $$('.mode').forEach(b => b.onclick = () => { sfx.click(); openSetup(b.dataset.mo
 RENDER.players = () => {
   $('#playerList').innerHTML = DB.players.map(p => {
     const r = rankOf(p.xp || 0);
-    return `<button class="card pcard" data-edit="${p.id}">${av(p.av)}<span class="info"><b>${esc(p.name)}</b><small>${p.age} år · ${GRADES[p.grade].name}</small>
+    return `<button class="card pcard" data-edit="${p.id}">${av(p.av)}<span class="info"><b>${esc(p.name)}</b><small>${p.age} år · ${GRADES[p.grade].name} · ${(p.langs || [uiLang()]).map(k => LANGS[k] ? LANGS[k].flag : '').join(' ')}</small>
       <div class="xpbar"><i style="width:${Math.round(r.frac * 100)}%"></i></div>
       <small><span class="rank">${r.title}</span> · ${p.xp || 0} XP · ${p.wins || 0} seire${p.best ? ` · rekord ${p.best}` : ''}</small></span><span style="font-size:22px;color:var(--muted)">›</span></button>`;
   }).join('') || '<p class="note">Ingen spillere ennå. Lag den første!</p>';
@@ -1439,7 +1521,7 @@ const E = {};
 $('#edGrade').innerHTML = GRADES.slice(1).map((g, i) => `<option value="${i + 1}">${g.name}</option>`).join('');
 function openEditor(id, back) {
   const p = id ? prof(id) : null;
-  Object.assign(E, { id, back, av: p ? { ...p.av } : randAv(), age: p ? p.age : 10, armed: false, buzz: p ? p.buzz || 0 : rnd(20) });
+  Object.assign(E, { id, back, av: p ? { ...p.av } : randAv(), age: p ? p.age : 10, armed: false, buzz: p ? p.buzz || 0 : rnd(20), langs: p && p.langs && p.langs.length ? p.langs.slice() : [uiLang()] });
   $('#edTitle').textContent = p ? 'Endre spiller' : 'Ny spiller';
   $('#edName').value = p ? p.name : '';
   $('#edGrade').value = p ? p.grade : gradeForAge(E.age);
@@ -1453,6 +1535,7 @@ function drawEditor() {
   $('#edCol').innerHTML = AV_COL.map((c, i) => `<button data-col="${i}" style="background:${c}" class="${E.av.col === i ? 'on' : ''}" aria-label="Farge ${i + 1}"></button>`).join('');
   $('#edBg').innerHTML = AV_BG.map((c, i) => `<button data-bg="${i}" style="background:${c}" class="${E.av.bg === i ? 'on' : ''}" aria-label="Bakgrunn ${i + 1}"></button>`).join('');
   $('#edGradeInfo').textContent = GRADES[+$('#edGrade').value].info;
+  $('#edLangs').innerHTML = Object.entries(LANGS).map(([k, l]) => { const n = E.langs.indexOf(k); return `<button data-lang="${k}" class="${n >= 0 ? 'on' : ''}">${l.flag} ${l.name}${n >= 0 && E.langs.length > 1 ? ` ${n + 1}` : ''}</button>`; }).join('');
   $('#edBuzz').innerHTML = BUZZ.map(([n], i) => `<button data-buzz="${i}" class="${E.buzz === i ? 'on' : ''}">${n}</button>`).join('');
 }
 $('#editor').addEventListener('click', e => {
@@ -1460,6 +1543,7 @@ $('#editor').addEventListener('click', e => {
   if (b.dataset.part) { const k = b.dataset.part; E.av[k] = (E.av[k] + +b.dataset.d + AV_N[k]) % AV_N[k]; sfx.pop(); drawEditor(); }
   else if (b.dataset.col) { E.av.col = +b.dataset.col; sfx.pop(); drawEditor(); }
   else if (b.dataset.bg) { E.av.bg = +b.dataset.bg; sfx.pop(); drawEditor(); }
+  else if (b.dataset.lang) { const k = b.dataset.lang, i = E.langs.indexOf(k); if (i >= 0) { if (E.langs.length > 1) E.langs.splice(i, 1); } else E.langs.push(k); sfx.pop(); drawEditor(); }
   else if (b.dataset.buzz) { E.buzz = +b.dataset.buzz; playBuzz(E.buzz); drawEditor(); }
 });
 $('#edRandom').onclick = () => { E.av = randAv(); sfx.pop(); drawEditor(); };
@@ -1472,7 +1556,7 @@ $('#edSave').onclick = () => {
   const name = $('#edName').value.trim() || `Spiller ${DB.players.length + (E.id ? 0 : 1)}`;
   let p = E.id && prof(E.id);
   if (!p) { p = newProfile(name, E.age); DB.players.push(p); if (E.back === 'setup') pickPlayer(p.id); }
-  Object.assign(p, { name, age: E.age, grade: +$('#edGrade').value, av: { ...E.av }, buzz: E.buzz });
+  Object.assign(p, { name, age: E.age, grade: +$('#edGrade').value, av: { ...E.av }, buzz: E.buzz, langs: E.langs.slice() });
   save(); sfx.ok(); closeEditor();
 };
 $('#edDelete').onclick = () => {
@@ -1591,7 +1675,7 @@ RENDER.history = () => {
     tally[k].games++; if (r.win) tally[k].wins++;
   }));
   const board = Object.values(tally).sort((a, b) => b.wins - a.wins || b.games - a.games).slice(0, 8);
-  const dt = new Intl.DateTimeFormat('nb-NO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const dt = new Intl.DateTimeFormat(LANGS[uiLang()].loc, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   body.innerHTML = (board.length ? `<div class="card"><p class="lbl">Flest seire</p><div class="stack">${board.map((r, n) => `<div class="lb"><span>${['🥇', '🥈', '🥉'][n] || '&nbsp;' + (n + 1) + '.'}</span>${av(r.av)}<span class="n">${esc(r.name)}</span><span>${r.wins}</span><small>av ${r.games}</small></div>`).join('')}</div></div>` : '')
     + `<div class="card"><p class="lbl">Alle kamper (${h.length})</p><div class="stack">${h.map(m => `<div class="hrow"><div class="top"><span>${dt.format(new Date(m.t))}</span><span>${MODE_NAME[m.mode] || ''}${m.count ? ' · ' + m.count + ' stk' : ''}</span></div>
       ${m.rows.map(r => `<div class="who">${av(r.av)}<span class="${r.win ? 'win' : ''}" style="flex:1">${esc(r.name)}${r.win ? ' 🏆' : ''}</span><span>${esc(r.score)}</span></div>`).join('')}</div>`).join('')}</div></div>`;
@@ -1600,6 +1684,7 @@ RENDER.history = () => {
 /* ---------- Innstillinger ---------- */
 const SETTINGS = [['music', '🎵 Musikk i menyene', 'Musikken er alltid av under spill, så mikrofonen hører dere.'], ['sfx', '🔊 Lydeffekter', ''], ['readAloud', '🗣 Les opp stykkene i trening', 'I Fest leses de alltid opp.'], ['showAns', '👀 Vis fasit til den som venter', 'Gjelder Duell med annenhver tur.']];
 RENDER.settings = () => {
+  $('#uiLang').innerHTML = Object.entries(LANGS).map(([k, l]) => `<button data-ui="${k}" class="${uiLang() === k ? 'on' : ''}">${l.flag} ${l.name}</button>`).join('');
   $('#setList').innerHTML = SETTINGS.map(([k, l, s]) => `<button class="toggle ${DB.settings[k] ? 'on' : ''}" data-tog="${k}"><span>${l}${s ? `<small>${s}</small>` : ''}</span><i></i></button>`).join('');
   $('#wipe').textContent = '🗑 Slett alle spillere og kamper'; $('#wipe').dataset.armed = '';
 };
@@ -1608,6 +1693,10 @@ $('#setList').onclick = e => {
   const k = b.dataset.tog; DB.settings[k] = !DB.settings[k]; save();
   if (k === 'music') { if (DB.settings.music) Music.start(); else Music.stop(); }
   sfx.click(); RENDER.settings();
+};
+$('#uiLang').onclick = e => {
+  const b = e.target.closest('[data-ui]'); if (!b) return;
+  DB.settings.lang = b.dataset.ui; save(); sfx.click(); RENDER.settings(); applyLang();
 };
 $('#wipe').onclick = () => {
   const b = $('#wipe');
@@ -1635,6 +1724,171 @@ $('#bgfx').innerHTML = Array.from({ length: 16 }, (_, i) => `<span style="left:$
 $('#intro .l1').innerHTML = [...'MATTE'].map((ch, i) => `<span style="animation-delay:${.15 + i * .12}s">${ch}</span>`).join('');
 $('.introavs').innerHTML = Array.from({ length: 5 }, (_, i) => `<span class="av" style="animation-delay:${1.5 + i * .12}s, ${-i * .5}s">${avSVG(DB.players[i] ? DB.players[i].av : randAv())}</span>`).join('');
 ['8×8', '64', '7+5', '√81', '12', '9²'].forEach((t, i) => { const s = document.createElement('span'); s.className = 'eqfly'; s.textContent = t; s.style.cssText = `left:${8 + i * 15}%; top:${i % 2 ? 14 : 80}%; animation-delay:${1.8 + i * .5}s`; $('#intro').appendChild(s); });
+/* =========================================================
+   Språk i spillet: oversetter tekstene på skjermen (norsk er kilden)
+   ========================================================= */
+const I18N = {
+  'Trykk for å starte': ['Tap to start', 'Tippen zum Starten', '点击开始'],
+  'Duell': ['Duel', 'Duell', '对决'], 'Fest': ['Party', 'Party', '派对'], 'Trening': ['Practice', 'Training', '练习'],
+  'To spillere med telefonen mellom seg. Annenhver tur eller buzzer.': ['Two players with the phone between them. Take turns or use buzzers.', 'Zwei Spieler mit dem Handy zwischen sich. Abwechselnd oder mit Buzzer.', '两名玩家，手机放在中间。轮流答题或抢答。'],
+  '2–8 spillere. Stemmen sier hvem sin tur det er og leser stykket.': ['2–8 players. The voice says whose turn it is and reads the problem.', '2–8 Spieler. Die Stimme sagt, wer dran ist, und liest die Aufgabe vor.', '2–8 名玩家。语音会说轮到谁，并读出题目。'],
+  'Én spiller. Slå din egen rekord på 60 sekunder.': ['One player. Beat your own record in 60 seconds.', 'Ein Spieler. Schlage deinen eigenen Rekord in 60 Sekunden.', '单人模式。在 60 秒内打破自己的纪录。'],
+  'Spillere': ['Players', 'Spieler', '玩家'], 'Historikk': ['History', 'Verlauf', '记录'], 'Innstillinger': ['Settings', 'Einstellungen', '设置'],
+  '＋ Ny spiller': ['＋ New player', '＋ Neuer Spieler', '＋ 新玩家'], 'Ny spiller': ['New player', 'Neuer Spieler', '新玩家'], 'Endre spiller': ['Edit player', 'Spieler bearbeiten', '编辑玩家'],
+  'Ingen spillere ennå. Lag den første!': ['No players yet. Create the first one!', 'Noch keine Spieler. Erstelle den ersten!', '还没有玩家。创建第一个吧！'],
+  '🎲 Tilfeldig figur': ['🎲 Random character', '🎲 Zufällige Figur', '🎲 随机角色'],
+  'Kropp': ['Body', 'Körper', '身体'], 'Øyne': ['Eyes', 'Augen', '眼睛'], 'Munn': ['Mouth', 'Mund', '嘴巴'], 'Hode': ['Head', 'Kopf', '头饰'], 'Ekstra': ['Extra', 'Extra', '配饰'],
+  'Farge': ['Colour', 'Farbe', '颜色'], 'Bakgrunn': ['Background', 'Hintergrund', '背景'], 'Navn': ['Name', 'Name', '名字'], 'Alder': ['Age', 'Alter', '年龄'],
+  'Nivå': ['Level', 'Stufe', '难度'], '(foreslås ut fra alder)': ['(suggested from age)', '(Vorschlag nach Alter)', '（按年龄推荐）'],
+  'Språk': ['Language', 'Sprache', '语言'],
+  'Det første språket er det stemmen snakker og mikrofonen lytter på. Du kan velge flere.': ['The first language is the one the voice speaks and the microphone listens for. You can choose several.', 'Die erste Sprache wird gesprochen und vom Mikrofon erwartet. Du kannst mehrere wählen.', '第一种语言是语音播报和麦克风识别的语言。可以选择多种。'],
+  'Buzzer-lyd': ['Buzzer sound', 'Buzzer-Ton', '抢答音效'], '(trykk for å høre)': ['(tap to listen)', '(zum Anhören tippen)', '（点击试听）'],
+  'Lagre spiller': ['Save player', 'Spieler speichern', '保存玩家'], '🗑 Slett spiller': ['🗑 Delete player', '🗑 Spieler löschen', '🗑 删除玩家'],
+  'Trykk igjen for å slette': ['Tap again to delete', 'Zum Löschen erneut tippen', '再点一次删除'],
+  'Velg to spillere (1 sitter nederst, 2 øverst)': ['Choose two players (1 sits at the bottom, 2 at the top)', 'Wähle zwei Spieler (1 sitzt unten, 2 oben)', '选择两名玩家（1 在下方，2 在上方）'],
+  'Velg 2–8 spillere i den rekkefølgen dere vil spille': ['Choose 2–8 players in the order you want to play', 'Wähle 2–8 Spieler in der gewünschten Reihenfolge', '按出场顺序选择 2–8 名玩家'],
+  'Hvem skal trene?': ['Who is practising?', 'Wer trainiert?', '谁来练习？'],
+  'Hold inne på en spiller for å endre nivået bare i denne kampen.': ['Press and hold a player to change the level for this game only.', 'Halte einen Spieler gedrückt, um die Stufe nur für dieses Spiel zu ändern.', '长按玩家，可只为本局更改难度。'],
+  'Spillmåte': ['Game type', 'Spielart', '玩法'], '🔁 Annenhver tur': ['🔁 Take turns', '🔁 Abwechselnd', '🔁 轮流'], '🔔 Buzzer': ['🔔 Buzzer', '🔔 Buzzer', '🔔 抢答'],
+  'Begge får samme stykke. Førstemann på buzzeren har 3 sekunder på å svare. Riktig gir +1, for sent gir −1.': ['Both get the same problem. First on the buzzer has 3 seconds to answer. Correct gives +1, too late gives −1.', 'Beide bekommen dieselbe Aufgabe. Wer zuerst buzzert, hat 3 Sekunden. Richtig gibt +1, zu spät −1.', '两人同一道题。先按抢答器的人有 3 秒作答。答对 +1，超时 −1。'],
+  'Dere får hvert deres stykke på eget nivå. Kortest total tid vinner.': ['Each of you gets your own problems at your own level. Shortest total time wins.', 'Jeder bekommt eigene Aufgaben auf seiner Stufe. Die kürzeste Gesamtzeit gewinnt.', '每人按自己的难度答题。总用时最短者获胜。'],
+  'Felles nivå': ['Shared level', 'Gemeinsame Stufe', '共同难度'], 'Antall spørsmål': ['Number of questions', 'Anzahl Fragen', '题目数量'], 'Oppgaver per spiller': ['Problems per player', 'Aufgaben pro Spieler', '每人题数'],
+  'En stemme sier hvem sin tur det er og leser stykket høyt. Si svaret, «gjenta» eller «pass». Hver spiller får stykker på sitt eget nivå.': ['A voice says whose turn it is and reads the problem aloud. Say the answer, “repeat” or “pass”. Each player gets problems at their own level.', 'Eine Stimme sagt, wer dran ist, und liest die Aufgabe vor. Sag die Antwort, „nochmal“ oder „weiter“. Jeder bekommt Aufgaben auf seiner Stufe.', '语音会说轮到谁并读出题目。说出答案，或说“重复”“跳过”。每人按自己的难度答题。'],
+  'Runder': ['Rounds', 'Runden', '轮数'], 'Tid per stykke': ['Time per problem', 'Zeit pro Aufgabe', '每题时间'], 'Ingen': ['None', 'Keine', '不限'],
+  'Øvelse': ['Exercise', 'Übung', '练习类型'], '⏱ 60 sekunder': ['⏱ 60 seconds', '⏱ 60 Sekunden', '⏱ 60 秒'], '🎯 10 stykker': ['🎯 10 problems', '🎯 10 Aufgaben', '🎯 10 题'], '🎯 20 stykker': ['🎯 20 problems', '🎯 20 Aufgaben', '🎯 20 题'],
+  'Løs så mange du klarer på ett minutt og slå rekorden din.': ['Solve as many as you can in one minute and beat your record.', 'Löse so viele wie möglich in einer Minute und schlage deinen Rekord.', '一分钟内尽量多答题，打破你的纪录。'],
+  'Løs alle stykkene så fort du kan.': ['Solve all the problems as fast as you can.', 'Löse alle Aufgaben so schnell du kannst.', '尽快答完所有题目。'],
+  'Regnearter': ['Operations', 'Rechenarten', '运算类型'], 'Svar med': ['Answer with', 'Antworten mit', '作答方式'], '🎤 Stemme': ['🎤 Voice', '🎤 Stimme', '🎤 语音'], '⌨️ Tastatur': ['⌨️ Keypad', '⌨️ Tastatur', '⌨️ 键盘'],
+  '➕ Pluss': ['➕ Addition', '➕ Plus', '➕ 加法'], '➖ Minus': ['➖ Subtraction', '➖ Minus', '➖ 减法'], '✖️ Gange': ['✖️ Multiplication', '✖️ Mal', '✖️ 乘法'], '➗ Deling': ['➗ Division', '➗ Geteilt', '➗ 除法'],
+  '％ Prosent': ['％ Percent', '％ Prozent', '％ 百分数'], 'x² Potenser og røtter': ['x² Powers and roots', 'x² Potenzen und Wurzeln', 'x² 乘方与开方'], 'x = ? Likninger': ['x = ? Equations', 'x = ? Gleichungen', 'x = ? 方程'],
+  'Stemme virker ikke i denne visningen. Bruk iPhone-appen, eller Chrome på Android eller PC. Spillet bruker tastatur.': ['Voice does not work in this view. Use the iPhone app, or Chrome on Android or a computer. The game uses the keypad.', 'Sprache funktioniert in dieser Ansicht nicht. Nutze die iPhone-App oder Chrome auf Android oder PC. Das Spiel nutzt die Tastatur.', '此页面无法使用语音。请使用 iPhone 应用，或在安卓、电脑上用 Chrome。游戏将使用键盘。'],
+  'Denne nettleseren støtter ikke talegjenkjenning. Spillet bruker tastatur.': ['This browser does not support speech recognition. The game uses the keypad.', 'Dieser Browser unterstützt keine Spracherkennung. Das Spiel nutzt die Tastatur.', '此浏览器不支持语音识别。游戏将使用键盘。'],
+  'Start!': ['Start!', 'Start!', '开始！'], 'Velg minst to spillere': ['Choose at least two players', 'Wähle mindestens zwei Spieler', '至少选择两名玩家'], 'Velg en spiller': ['Choose a player', 'Wähle einen Spieler', '请选择一名玩家'],
+  'Nivå i denne kampen': ['Level in this game', 'Stufe in diesem Spiel', '本局难度'], 'Tilbakestill': ['Reset', 'Zurücksetzen', '恢复'], 'Ferdig': ['Done', 'Fertig', '完成'],
+  'Ingen kamper ennå. Spill en runde, så dukker den opp her.': ['No games yet. Play a round and it will show up here.', 'Noch keine Spiele. Spiel eine Runde, dann erscheint sie hier.', '还没有比赛。玩一局后会显示在这里。'],
+  'Flest seire': ['Most wins', 'Meiste Siege', '胜场排行'],
+  'Språk i spillet': ['Game language', 'Sprache im Spiel', '游戏语言'],
+  'Gjelder menyer og tekster. Hver spiller velger sitt eget språk for stemme og svar under Spillere.': ['Applies to menus and text. Each player chooses their own language for voice and answers under Players.', 'Gilt für Menüs und Texte. Jeder Spieler wählt seine Sprache für Stimme und Antworten unter Spieler.', '适用于菜单和文字。每位玩家可在“玩家”中选择自己的语音和作答语言。'],
+  '🎵 Musikk i menyene': ['🎵 Music in menus', '🎵 Musik in den Menüs', '🎵 菜单音乐'], 'Musikken er alltid av under spill, så mikrofonen hører dere.': ['Music is always off during play so the microphone can hear you.', 'Im Spiel ist die Musik immer aus, damit das Mikrofon euch hört.', '比赛时音乐始终关闭，以便麦克风听清你们。'],
+  '🔊 Lydeffekter': ['🔊 Sound effects', '🔊 Soundeffekte', '🔊 音效'],
+  '🗣 Les opp stykkene i trening': ['🗣 Read problems aloud in Practice', '🗣 Aufgaben im Training vorlesen', '🗣 练习时朗读题目'], 'I Fest leses de alltid opp.': ['In Party they are always read aloud.', 'In Party werden sie immer vorgelesen.', '派对模式中始终朗读。'],
+  '👀 Vis fasit til den som venter': ['👀 Show the answer to the waiting player', '👀 Lösung dem Wartenden zeigen', '👀 向等待的玩家显示答案'], 'Gjelder Duell med annenhver tur.': ['Applies to Duel when taking turns.', 'Gilt für Duell im Wechsel.', '适用于轮流对决。'],
+  '🗑 Slett alle spillere og kamper': ['🗑 Delete all players and games', '🗑 Alle Spieler und Spiele löschen', '🗑 删除所有玩家和比赛'], 'Trykk igjen for å slette alt': ['Tap again to delete everything', 'Zum Löschen erneut tippen', '再点一次删除全部'],
+  'Spillere, rekorder og kamper lagres bare på denne enheten.': ['Players, records and games are stored on this device only.', 'Spieler, Rekorde und Spiele werden nur auf diesem Gerät gespeichert.', '玩家、纪录和比赛仅保存在本设备上。'],
+  '↻ Spill igjen': ['↻ Play again', '↻ Nochmal spielen', '↻ 再玩一次'], '↻ Igjen': ['↻ Again', '↻ Nochmal', '↻ 再来'], 'Meny': ['Menu', 'Menü', '菜单'],
+  'Pause': ['Pause', 'Pause', '暂停'], '⏸ Pause': ['⏸ Pause', '⏸ Pause', '⏸ 暂停'], '▶ Fortsett': ['▶ Continue', '▶ Weiter', '▶ 继续'], '✕ Avslutt spillet': ['✕ Quit game', '✕ Spiel beenden', '✕ 退出比赛'],
+  'Lytter': ['Listening', 'Hört zu', '正在听'], 'Mikrofon av': ['Microphone off', 'Mikrofon aus', '麦克风关闭'], 'Tastatur': ['Keypad', 'Tastatur', '键盘'], 'Av': ['Off', 'Aus', '关'],
+  'Trykk for å lytte': ['Tap to listen', 'Zum Zuhören tippen', '点击开始听'], 'Gi tilgang i Innstillinger': ['Allow access in Settings', 'Zugriff in den Einstellungen erlauben', '请在设置中允许访问'], 'Bruk tastatur': ['Use the keypad', 'Tastatur benutzen', '请使用键盘'],
+  'Kjør!': ['Go!', 'Los!', '开始！'], 'Gjør deg klar!': ['Get ready!', 'Mach dich bereit!', '准备好！'], 'Så mange du klarer på 60 sekunder!': ['As many as you can in 60 seconds!', 'So viele wie möglich in 60 Sekunden!', '60 秒内答得越多越好！'], 'Fingeren klar på buzzeren!': ['Finger ready on the buzzer!', 'Finger auf den Buzzer!', '手指放在抢答器上！'],
+  'Din tur! Si svaret høyt 🎤': ['Your turn! Say the answer aloud 🎤', 'Du bist dran! Sag die Antwort laut 🎤', '轮到你了！大声说出答案 🎤'], 'Din tur! Tast svaret': ['Your turn! Type the answer', 'Du bist dran! Tippe die Antwort', '轮到你了！输入答案'],
+  'Ferdig! 🎉': ['Finished! 🎉', 'Fertig! 🎉', '完成！🎉'], 'Si svaret – nå! 🎤': ['Say the answer – now! 🎤', 'Sag die Antwort – jetzt! 🎤', '快说出答案！🎤'], 'Tast svaret – fort!': ['Type the answer – quick!', 'Tippe die Antwort – schnell!', '快输入答案！'],
+  'Du er ute denne runden': ['You are out this round', 'Du bist in dieser Runde raus', '本轮你已出局'], 'Trykk buzzeren når du kan svaret!': ['Hit the buzzer when you know the answer!', 'Drück den Buzzer, wenn du die Antwort weißt!', '知道答案就按抢答器！'],
+  'For sent! −1 poeng': ['Too late! −1 point', 'Zu spät! −1 Punkt', '超时！−1 分'], '👂 Lytter på nytt …': ['👂 Listening again …', '👂 Hört erneut zu …', '👂 重新聆听…'],
+  'Du vant! 🏆': ['You won! 🏆', 'Du hast gewonnen! 🏆', '你赢了！🏆'], 'Uavgjort! 🤝': ['A tie! 🤝', 'Unentschieden! 🤝', '平局！🤝'],
+  'Din tid:': ['Your time:', 'Deine Zeit:', '你的用时：'], '· Riktige:': ['· Correct:', '· Richtig:', '· 答对：'], 'Riktige:': ['Correct:', 'Richtig:', '答对：'], '· Hoppet over:': ['· Skipped:', '· Übersprungen:', '· 跳过：'],
+  '· For sent:': ['· Too late:', '· Zu spät:', '· 超时：'], 'Feil forsøk:': ['Wrong attempts:', 'Fehlversuche:', '错误尝试：'], 'Du var': ['You were', 'Du warst', '你快了'], 'raskere': ['faster', 'schneller', ''],
+  'Si svaret høyt': ['Say the answer aloud', 'Sag die Antwort laut', '大声说出答案'], 'Tast svaret': ['Type the answer', 'Tippe die Antwort', '输入答案'], '🔊 Hør etter …': ['🔊 Listen …', '🔊 Hör zu …', '🔊 请听…'],
+  '🔁 Gjenta': ['🔁 Repeat', '🔁 Nochmal', '🔁 重复'], '👂 Hør på nytt': ['👂 Listen again', '👂 Neu zuhören', '👂 重新听'], '⏭ Pass': ['⏭ Pass', '⏭ Weiter', '⏭ 跳过'],
+  '⏭ Hopp over (+5 s)': ['⏭ Skip (+5 s)', '⏭ Überspringen (+5 s)', '⏭ 跳过（+5 秒）'], '✓ Godkjenn motstanderens svar': ["✓ Approve opponent's answer", '✓ Antwort des Gegners bestätigen', '✓ 认可对手的答案'],
+  'Ny rekord! 🏅': ['New record! 🏅', 'Neuer Rekord! 🏅', '新纪录！🏅'], 'Bra jobba! 💪': ['Well done! 💪', 'Gut gemacht! 💪', '干得好！💪'], 'Prøv igjen!': ['Try again!', 'Versuch es nochmal!', '再试一次！'],
+  'Nybegynner': ['Beginner', 'Anfänger', '新手'], 'Tallvenn': ['Number Friend', 'Zahlenfreund', '数字伙伴'], 'Regnerev': ['Sums Fox', 'Rechenfuchs', '算术小狐'], 'Tallknuser': ['Number Cruncher', 'Zahlenknacker', '数字达人'],
+  'Mattehelt': ['Maths Hero', 'Mathe-Held', '数学英雄'], 'Mattemester': ['Maths Master', 'Mathe-Meister', '数学大师'], 'Mattelegende': ['Maths Legend', 'Mathe-Legende', '数学传奇'],
+  'Pluss og minus opp til 10': ['Adding and subtracting up to 10', 'Plus und Minus bis 10', '10 以内加减法'],
+  'Pluss og minus opp til 20, hele tiere, dobling': ['Adding and subtracting up to 20, whole tens, doubling', 'Plus und Minus bis 20, ganze Zehner, Verdoppeln', '20 以内加减法、整十数、加倍'],
+  'Pluss og minus opp til 100, 2-, 5- og 10-gangen': ['Adding and subtracting up to 100; 2, 5 and 10 times tables', 'Plus und Minus bis 100, 2er-, 5er- und 10er-Reihe', '100 以内加减法，2、5、10 的乘法表'],
+  'Hele gangetabellen, enkel deling, tosifret pluss/minus': ['All times tables, simple division, two-digit adding and subtracting', 'Das ganze Einmaleins, einfaches Teilen, zweistelliges Plus/Minus', '乘法表、简单除法、两位数加减'],
+  'Gangetabell, deling, ganging med 10 og 100, runde tall': ['Times tables, division, multiplying by 10 and 100, round numbers', 'Einmaleins, Teilen, Mal 10 und 100, runde Zahlen', '乘法表、除法、乘以 10 和 100、整数'],
+  'Tosifret × ensifret, deling, 11- og 12-gangen': ['Two-digit × one-digit, division, 11 and 12 times tables', 'Zweistellig × einstellig, Teilen, 11er- und 12er-Reihe', '两位数 × 一位数、除法、11 和 12 的乘法表'],
+  'Negative tall, enkle prosenter, kvadrattall, regnerekkefølge': ['Negative numbers, simple percentages, squares, order of operations', 'Negative Zahlen, einfache Prozente, Quadratzahlen, Rechenreihenfolge', '负数、简单百分数、平方数、运算顺序'],
+  'Kvadrater og kvadratrøtter, prosent, regnerekkefølge, negative tall': ['Squares and square roots, percentages, order of operations, negative numbers', 'Quadrate und Wurzeln, Prozent, Rechenreihenfolge, negative Zahlen', '平方与平方根、百分数、运算顺序、负数'],
+  'Potenser, enkle likninger, negative tall, prosent': ['Powers, simple equations, negative numbers, percentages', 'Potenzen, einfache Gleichungen, negative Zahlen, Prozent', '乘方、简单方程、负数、百分数'],
+  'Likninger, potenser, kvadratrøtter, prosentvis endring': ['Equations, powers, square roots, percentage change', 'Gleichungen, Potenzen, Wurzeln, prozentuale Änderung', '方程、乘方、平方根、百分比变化'],
+  '🔔 Klassisk': ['🔔 Classic', '🔔 Klassisch', '🔔 经典'], '🪙 Mynt': ['🪙 Coin', '🪙 Münze', '🪙 金币'], '🚗 Tut-tut': ['🚗 Beep-beep', '🚗 Tut-tut', '🚗 嘀嘀'], '😗 Plystre': ['😗 Whistle', '😗 Pfeifen', '😗 口哨'],
+  '🚀 Romskip': ['🚀 Spaceship', '🚀 Raumschiff', '🚀 飞船'], '🚨 Sirene': ['🚨 Siren', '🚨 Sirene', '🚨 警报器'], '✨ Pling': ['✨ Ding', '✨ Pling', '✨ 叮'], '💨 Promp': ['💨 Fart', '💨 Pups', '💨 放屁'],
+  '🦆 Kvakk': ['🦆 Quack', '🦆 Quak', '🦆 嘎嘎'], '🥁 Trommer': ['🥁 Drums', '🥁 Trommeln', '🥁 鼓'], '🪄 Tryllestav': ['🪄 Magic wand', '🪄 Zauberstab', '🪄 魔法棒'], '⏰ Alarm': ['⏰ Alarm', '⏰ Wecker', '⏰ 闹钟'],
+  '🫧 Blubb': ['🫧 Bubbles', '🫧 Blubb', '🫧 泡泡'], '🐱 Mjau': ['🐱 Meow', '🐱 Miau', '🐱 喵'], '🤖 Robot': ['🤖 Robot', '🤖 Roboter', '🤖 机器人'], '🎺 Fanfare': ['🎺 Fanfare', '🎺 Fanfare', '🎺 号角'],
+  '⚔️ Duell': ['⚔️ Duel', '⚔️ Duell', '⚔️ 对决'], '🎉 Fest': ['🎉 Party', '🎉 Party', '🎉 派对'], '🎯 Trening': ['🎯 Practice', '🎯 Training', '🎯 练习'],
+};
+const trG = (g, li) => ['Grade ' + g, g + '. Klasse', g + '年级'][li];
+const trMode = (m, li) => ({ '🎉 Fest': ['🎉 Party', '🎉 Party', '🎉 派对'], '🎯 Trening': ['🎯 Practice', '🎯 Training', '🎯 练习'], '🔁 Duell': ['🔁 Duel', '🔁 Duell', '🔁 对决'], '🔔 Buzzer': ['🔔 Buzzer', '🔔 Buzzer', '🔔 抢答'] }[m] || [m, m, m])[li];
+const I18N_RX = [
+  [/^(\d+)\. klasse$/, (m, li) => trG(m[1], li)],
+  [/^(\d+) år$/, ['$1 years', '$1 Jahre', '$1 岁']],
+  [/^(\d+) år · (\d+)\. klasse(.*)$/, (m, li) => [`${m[1]} years`, `${m[1]} Jahre`, `${m[1]} 岁`][li] + ' · ' + trG(m[2], li) + m[3]],
+  [/^(.*) \(Lagret nivå: (\d+)\. klasse\)$/, (m, li) => (tr(m[1], li) || m[1]) + [' (Saved level: ', ' (Gespeicherte Stufe: ', '（已保存难度：'][li] + trG(m[2], li) + (li === 2 ? '）' : ')')],
+  [/^([+−-]?\d+) poeng$/, ['$1 points', '$1 Punkte', '$1 分']],
+  [/^(\d+) poeng på (\d+) runder$/, ['$1 points in $2 rounds', '$1 Punkte in $2 Runden', '$2 轮得 $1 分']],
+  [/^(\d+) riktige · (\d+) pass · (\d+) feil forsøk$/, ['$1 correct · $2 passes · $3 wrong attempts', '$1 richtig · $2 übersprungen · $3 Fehlversuche', '答对 $1 · 跳过 $2 · 错误尝试 $3']],
+  [/^(\d+) av (\d+) riktige på (.+?)(?: · (\d+) på rad)?$/, (m, li) => [`${m[1]} of ${m[2]} correct in ${m[3]}`, `${m[1]} von ${m[2]} richtig in ${m[3]}`, `${m[2]} 题答对 ${m[1]} 题，用时 ${m[3]}`][li] + (m[4] ? [` · ${m[4]} in a row`, ` · ${m[4]} in Folge`, ` · 连对 ${m[4]}`][li] : '')],
+  [/^(\d+) riktige på 60 sekunder(?: · (\d+) på rad)?$/, (m, li) => [`${m[1]} correct in 60 seconds`, `${m[1]} richtig in 60 Sekunden`, `60 秒答对 ${m[1]} 题`][li] + (m[2] ? [` · ${m[2]} in a row`, ` · ${m[2]} in Folge`, ` · 连对 ${m[2]}`][li] : '')],
+  [/^(\d+) riktige$/, ['$1 correct', '$1 richtig', '答对 $1']],
+  [/^(\d+)\/(\d+) · (.+)$/, null],
+  [/^Alle kamper \((\d+)\)$/, ['All games ($1)', 'Alle Spiele ($1)', '全部比赛（$1）']],
+  [/^av (\d+)$/, ['of $1', 'von $1', '/ $1']],
+  [/^Hørte (.+) – ikke riktig$/, ['Heard $1 – not correct', '$1 gehört – nicht richtig', '听到 $1 – 不对']],
+  [/^Pass\. Svaret var (.+)$/, ['Pass. The answer was $1', 'Weiter. Die Antwort war $1', '跳过。答案是 $1']],
+  [/^Tiden er ute! Svaret var (.+)$/, ["Time's up! The answer was $1", 'Zeit um! Die Antwort war $1', '时间到！答案是 $1']],
+  [/^Svaret var (.+?)\s+\(\+5 s\)$/, ['The answer was $1 (+5 s)', 'Die Antwort war $1 (+5 s)', '答案是 $1（+5 秒）']],
+  [/^Ingen svarte\. Svaret var (.+)\.$/, ['Nobody answered. The answer was $1.', 'Niemand hat geantwortet. Die Antwort war $1.', '无人作答。答案是 $1。']],
+  [/^Ingen av dere klarte det\. Svaret var (.+)\.$/, ['Neither of you got it. The answer was $1.', 'Keiner hat es geschafft. Die Antwort war $1.', '你们都没答对。答案是 $1。']],
+  [/^Fasit: (.+)$/, ['Answer: $1', 'Lösung: $1', '答案：$1']],
+  [/^Vent – (.+) regner:$/, ['Wait – $1 is working on:', 'Warte – $1 rechnet:', '请等待 – $1 正在计算：']],
+  [/^(.+) er ferdig med stykket$/, ['$1 has finished the problem', '$1 ist mit der Aufgabe fertig', '$1 已答完这道题']],
+  [/^(.+) sin tur$/, ["$1's turn", '$1 ist dran', '轮到 $1']],
+  [/^(.+) starter$/, ['$1 starts', '$1 beginnt', '$1 先开始']],
+  [/^(.+) svarer …$/, ['$1 is answering …', '$1 antwortet …', '$1 正在作答…']],
+  [/^(.+) svarte riktig: (.+)$/, ['$1 answered correctly: $2', '$1 hat richtig geantwortet: $2', '$1 答对了：$2']],
+  [/^(.+) bommet – din sjanse!$/, ['$1 missed – your chance!', '$1 lag daneben – deine Chance!', '$1 没答对 – 你的机会！']],
+  [/^(.+) vant! 🏆$/, ['$1 won! 🏆', '$1 hat gewonnen! 🏆', '$1 赢了！🏆']],
+  [/^(.+) vant$/, ['$1 won', '$1 hat gewonnen', '$1 赢了']],
+  [/^(.+) var$/, ['$1 was', '$1 war', '$1 快了']],
+  [/^· (\d+) XP · (\d+) seire(?: · rekord (\d+))?$/, (m, li) => `· ${m[1]} XP · ` + [`${m[2]} wins`, `${m[2]} Siege`, `${m[2]} 胜`][li] + (m[3] ? [` · record ${m[3]}`, ` · Rekord ${m[3]}`, ` · 纪录 ${m[3]}`][li] : '')],
+  [/^✅ (\d+) riktige$/, ['✅ $1 correct', '✅ $1 richtig', '✅ 答对 $1']],
+  [/^🏅 Rekord (\d+)$/, ['🏅 Record $1', '🏅 Rekord $1', '🏅 纪录 $1']],
+  [/^✓ (.+) er riktig!( \+1 poeng)?$/, (m, li) => [`✓ ${m[1]} is correct!`, `✓ ${m[1]} ist richtig!`, `✓ ${m[1]} 答对了！`][li] + (m[2] ? [' +1 point', ' +1 Punkt', ' +1 分'][li] : '')],
+  [/^🎉 Runde (\d+) av (\d+)$/, ['🎉 Round $1 of $2', '🎉 Runde $1 von $2', '🎉 第 $1 / $2 轮']],
+  [/^🎯 Oppgave (\d+) av (\d+)$/, ['🎯 Problem $1 of $2', '🎯 Aufgabe $1 von $2', '🎯 第 $1 / $2 题']],
+  [/^🔥 (\d+) på rad!$/, ['🔥 $1 in a row!', '🔥 $1 in Folge!', '🔥 连对 $1 题！']],
+  [/^(🎉 Fest|🎯 Trening|🔁 Duell|🔔 Buzzer) · (\d+) stk$/, (m, li) => trMode(m[1], li) + ' · ' + m[2] + ['', '', ' 题'][li]],
+  [/^(🔁 Duell)$/, (m, li) => trMode(m[1], li)],
+];
+function tr(nb, li) {
+  const e = I18N[nb]; if (e) return e[li];
+  for (const [re, out] of I18N_RX) {
+    const m = nb.match(re);
+    if (m) return !out ? null : typeof out === 'function' ? out(m, li) : out[li].replace(/\$(\d)/g, (x, n) => (m[n] === undefined ? '' : m[n]));
+  }
+  return null;
+}
+function trNode(n) {
+  const p = n.parentNode; if (!p || p.nodeName === 'SCRIPT' || p.nodeName === 'STYLE') return;
+  const li = ['en', 'de', 'zh'].indexOf(uiLang());
+  const src = n.__out !== undefined && n.__out === n.nodeValue ? n.__nb : n.nodeValue;
+  if (li < 0) { if (n.__out !== undefined) { n.__out = undefined; if (n.nodeValue !== src) n.nodeValue = src; } return; }
+  const core = src.trim();
+  if (core.length < 2 || !/[A-Za-zÀ-ÿ]{2}/.test(core)) return;
+  const t = tr(core, li);
+  if (t === null || t === undefined) return;
+  const out = src.replace(core, () => t);
+  n.__nb = src; n.__out = out;
+  if (n.nodeValue !== out) n.nodeValue = out;
+}
+function trTree(root) {
+  if (root.nodeType === 3) return trNode(root);
+  if (root.nodeType !== 1) return;
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let x;
+  while ((x = w.nextNode())) trNode(x);
+}
+function applyLang() {
+  document.documentElement.lang = uiLang() === 'nb' ? 'no' : uiLang();
+  trTree(document.body);
+  const li = ['en', 'de', 'zh'].indexOf(uiLang());
+  $('#edName').placeholder = li < 0 ? 'Navn' : I18N['Navn'][li];
+}
+new MutationObserver(ms => ms.forEach(m => { if (m.type === 'characterData') trNode(m.target); else m.addedNodes.forEach(trTree); }))
+  .observe(document.body, { childList: true, subtree: true, characterData: true });
+applyLang();
+
 let introGone = false;
 $('#intro').addEventListener('click', () => {
   if (introGone) return; introGone = true;

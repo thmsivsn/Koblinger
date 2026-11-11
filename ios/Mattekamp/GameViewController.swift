@@ -47,7 +47,21 @@ final class GameViewController: UIViewController, WKScriptMessageHandler {
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage) {
         guard let command = message.body as? String else { return }
-        if message.name == "tts" { speaker.speak(command); return }
+        if message.name == "tts" {
+            // Enten ren tekst (tom = stopp) eller JSON: {"t": tekst, "l": språkkode}
+            if let data = command.data(using: .utf8),
+               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: String],
+               let text = obj["t"] {
+                speaker.speak(text, language: obj["l"] ?? "nb-NO")
+            } else {
+                speaker.speak(command, language: "nb-NO")
+            }
+            return
+        }
+        if command.hasPrefix("lang:") {
+            speech.setLanguages(command.dropFirst(5).split(separator: ",").map(String.init))
+            return
+        }
         switch command {
         case "start": speech.start()
         case "stop": speech.stop()
