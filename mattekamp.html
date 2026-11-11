@@ -395,6 +395,7 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const Voice = {
   rec: null, wanted: false, minIndex: 0,
   start() {
+    if (NATIVE) { NATIVE.postMessage('start'); return; }
     if (Dict) return dictStart();
     if (IN_ARTIFACT) return micDenied();
     if (!SR) return;
@@ -416,11 +417,23 @@ const Voice = {
     this._go();
   },
   _go() { try { this.rec.start(); } catch (e) {} },
-  stop() { if (Dict) { Dict.stop().catch(() => {}); setMic(false); return; } this.wanted = false; if (this.rec) try { this.rec.abort(); } catch (e) {} setMic(false); },
+  stop() { if (NATIVE) { NATIVE.postMessage('stop'); setMic(false); return; } if (Dict) { Dict.stop().catch(() => {}); setMic(false); return; } this.wanted = false; if (this.rec) try { this.rec.abort(); } catch (e) {} setMic(false); },
 };
 /* Claude-artifakt: plattformens diktering (fungerer i Chrome-nettleser) */
 let Dict = null, dictNoLang = false;
 const IN_ARTIFACT = !!(window.claude && window.claude.use);
+/* iOS-appen: innebygd talegjenkjenning via WKWebView */
+const NATIVE = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.speech;
+window.nativeSpeech = (text, final, alt) => {
+  if (!alt) return handleText(text, final);
+  if (G.running && !G.paused && G.awaiting && parseNumbers(text).includes(G.players[G.turn].cur.a)) correct(G.turn, text);
+};
+window.nativeSpeechState = st => {
+  if (st === 'listening') setMic(true);
+  else if (st === 'denied') micDenied();
+  else if (st === 'idle') setMic(false);
+  else micHint();
+};
 const NO_VOICE_HERE = 'Stemme virker ikke i denne visningen (Claude-appen eller Safari på iPhone). Åpne lenken i Chrome på Android, eller bruk tastatur.';
 function dictStart() {
   Dict.start(dictNoLang ? undefined : { language: 'nb' }).catch(err => {
@@ -561,7 +574,7 @@ function startGame() {
   G.count = +$('#countSeg .on').dataset.v;
   G.mode = $('#modeSeg .on').dataset.v;
   G.showAns = $('#ansSeg .on').dataset.v === 'show';
-  if ((!SR || IN_ARTIFACT) && !Dict) G.mode = 'keys';
+  if ((!SR || IN_ARTIFACT) && !Dict && !NATIVE) G.mode = 'keys';
   G.players = [0, 1].map(i => ({
     name: ($('#n' + (i + 1)).value.trim() || `Spiller ${i + 1}`),
     grade: +$('#g' + (i + 1)).value,
@@ -608,6 +621,7 @@ function finishTurn(i, outcome, penalty = 0) {
   G.awaiting = false;
   clearInterval(G.timer);
   p.time += performance.now() - G.turnStart + penalty;
+  if (NATIVE) NATIVE.postMessage('reset');
   p.log[p.done] = outcome;
   p.done++;
   p.cur = p.done < G.count ? makeProblem(p.grade, p.cur.q) : p.cur;
@@ -721,6 +735,7 @@ function micDenied() {
   render();
   $('#micTxt').textContent = 'Mikrofon ikke tilgjengelig – bruk tastatur';
   if (IN_ARTIFACT && !Dict) noVoiceHere();
+  if (NATIVE) $('#micTxt').textContent = 'Gi tilgang til mikrofon og tale i Innstillinger';
 }
 
 function goFullscreen() {
@@ -759,7 +774,7 @@ try {
   }
 } catch (e) {}
 gradeInfo();
-if (!SR && !IN_ARTIFACT) {
+if (!SR && !IN_ARTIFACT && !NATIVE) {
   $('#srWarn').classList.remove('hidden');
   $('#srWarn').textContent = 'Denne nettleseren støtter ikke talegjenkjenning. Spillet bruker tastatur i stedet. Prøv Chrome på Android eller Safari på iPhone for å svare med stemmen.';
   document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === 'keys'));

@@ -1,0 +1,35 @@
+name: Mattekamp
+options:
+  bundleIdPrefix: no.mattekamp
+  deploymentTarget:
+    iOS: "15.0"
+targets:
+  Mattekamp:
+    type: application
+    platform: iOS
+    sources:
+      - path: Mattekamp
+      - path: ../mattekamp.html
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: no.mattekamp.app
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: NO
+    info:
+      path: Mattekamp/Info.plist
+      properties:
+        CFBundleDisplayName: Mattekamp
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen: {}
+        UIRequiresFullScreen: true
+        UIStatusBarHidden: true
+        UIViewControllerBasedStatusBarAppearance: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait]
+        NSMicrophoneUsageDescription: Mattekamp lytter etter svarene dere sier høyt.
+        NSSpeechRecognitionUsageDescription: Mattekamp gjør om svarene dere sier til tall, slik at de kan godkjennes automatisk.
