@@ -18,9 +18,18 @@ final class Speaker: NSObject, AVSpeechSynthesizerDelegate {
         if synth.isSpeaking { synth.stopSpeaking(at: .immediate) }
         guard !text.isEmpty else { return }
         let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: "nb-NO") ?? AVSpeechSynthesisVoice(language: "no-NO")
-        utterance.rate = 0.52
+        utterance.voice = bestVoice()
+        utterance.rate = 0.5
+        utterance.pitchMultiplier = 1.08
         synth.speak(utterance)
+    }
+
+    /// Velger den beste norske stemmen som er lastet ned på telefonen
+    /// (Premium > Forbedret > Standard). Bedre stemmer lastes ned under
+    /// Innstillinger > Tilgjengelighet > Opplest innhold > Stemmer > Norsk bokmål.
+    private func bestVoice() -> AVSpeechSynthesisVoice? {
+        let norwegian = AVSpeechSynthesisVoice.speechVoices().filter { $0.language.hasPrefix("nb") || $0.language.hasPrefix("no") }
+        return norwegian.max { $0.quality.rawValue < $1.quality.rawValue } ?? AVSpeechSynthesisVoice(language: "nb-NO")
     }
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {

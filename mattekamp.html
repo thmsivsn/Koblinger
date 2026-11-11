@@ -131,6 +131,13 @@
   .stepper button{height:48px; border-radius:14px; background:rgba(0,0,0,.25); border:1.5px solid var(--line); font-size:24px; font-weight:900}
   .stepper output{text-align:center; font-size:22px; font-weight:900}
 
+  .bz{display:grid; grid-template-columns:repeat(2,1fr); gap:6px}
+  .bz button{min-height:44px; padding:6px 10px; border-radius:12px; background:rgba(0,0,0,.25); border:2px solid var(--line); font-weight:800; font-size:14px; text-align:left}
+  .bz button.on{border-color:var(--gold); background:rgba(255,200,61,.16)}
+  #lvl{position:fixed; inset:0; z-index:45; background:rgba(5,6,18,.88); display:flex; align-items:center; justify-content:center; padding:20px}
+  #lvl .card{width:min(100%,360px); display:flex; flex-direction:column; align-items:center; gap:12px; text-align:center; background:#1a2050}
+  #lvl .av{--s:84px} #lvl .stepper{width:100%} #lvl .row{width:100%}
+  .pick button{-webkit-touch-callout:none}
   /* Oppsett: spillervelger */
   .pick{display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:8px}
   .pick button{position:relative; display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 4px 8px; border-radius:16px; background:rgba(0,0,0,.25); border:2px solid var(--line); min-width:0}
@@ -292,6 +299,7 @@
     <div><p class="lbl">Alder</p><div class="stepper"><button id="ageDown" aria-label="Yngre">−</button><output id="edAge">10 år</output><button id="ageUp" aria-label="Eldre">＋</button></div></div>
     <div><p class="lbl">Nivå <span style="text-transform:none; letter-spacing:0">(foreslås ut fra alder)</span></p><select id="edGrade"></select><p class="note" id="edGradeInfo" style="margin-top:6px"></p></div>
   </div>
+  <div class="card"><p class="lbl">Buzzer-lyd <span style="text-transform:none; letter-spacing:0">(trykk for å høre)</span></p><div class="bz" id="edBuzz"></div></div>
   <button class="btn green big" id="edSave">Lagre spiller</button>
   <button class="btn danger" id="edDelete">🗑 Slett spiller</button>
 </div></div>
@@ -347,6 +355,13 @@
   <div class="rrscore" id="rrScore"></div>
 </div>
 
+<div id="lvl" class="hidden"><div class="card">
+  <span id="lvlAv"></span><b id="lvlName" style="font-size:20px"></b>
+  <p class="lbl" style="margin:0">Nivå i denne kampen</p>
+  <div class="stepper"><button id="lvlDown" aria-label="Lettere">−</button><output id="lvlOut"></output><button id="lvlUp" aria-label="Vanskeligere">＋</button></div>
+  <p class="note" id="lvlInfo"></p>
+  <div class="row"><button class="btn" id="lvlReset">Tilbakestill</button><button class="btn gold" id="lvlDone">Ferdig</button></div>
+</div></div>
 <div id="count"><b></b><span></span></div>
 <div id="pause" class="hidden">
   <h2 style="margin:0">Pause</h2>
@@ -356,6 +371,9 @@
 
 <script>
 'use strict';
+if (window.AndroidBridge && !(window.webkit && window.webkit.messageHandlers)) {
+  window.webkit = { messageHandlers: { speech: { postMessage: m => AndroidBridge.speech(String(m)) }, tts: { postMessage: t => AndroidBridge.tts(String(t)) } } };
+}
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -583,7 +601,7 @@ function save() { try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); } catc
 const prof = id => DB.players.find(p => p.id === id);
 const gradeForAge = age => Math.max(1, Math.min(10, age - 5));
 function newProfile(name, age) {
-  return { id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, age, grade: gradeForAge(age), av: randAv(), xp: 0, games: 0, wins: 0, best: 0 };
+  return { id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, age, grade: gradeForAge(age), av: randAv(), buzz: Math.floor(Math.random() * 20), xp: 0, games: 0, wins: 0, best: 0 };
 }
 const RANKS = [[0, 'Nybegynner'], [100, 'Tallvenn'], [300, 'Regnerev'], [700, 'Tallknuser'], [1500, 'Mattehelt'], [3000, 'Mattemester'], [6000, 'Mattelegende']];
 function rankOf(xp) {
@@ -692,6 +710,41 @@ const sfx = {
   intro: () => play([392, 523, 659, 784, 1047], 'triangle', .22, .08, .22),
   pop: () => play([700 + rnd(300)], 'sine', .1, .05, .07),
 };
+function sweep(f1, f2, t, dur, type = 'sine', vol = .2) { const o = tone(f1, t, dur, type, vol); if (o) o.frequency.exponentialRampToValueAtTime(Math.max(1, f2), t + dur); }
+function noise(t, dur, vol = .2, freq = 1000, type = 'bandpass') {
+  const c = AC, n = Math.max(1, c.sampleRate * dur | 0), buf = c.createBuffer(1, n, c.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  const src = c.createBufferSource(), fl = c.createBiquadFilter(), g = c.createGain();
+  src.buffer = buf; fl.type = type; fl.frequency.value = freq;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(fl).connect(g).connect(sfxGain); src.start(t);
+}
+const seq = (notes, t, step, dur, type, vol) => notes.forEach((f, i) => f && tone(f, t + i * step, dur, type, vol));
+/* 20 buzzer-lyder – hver spiller velger sin egen */
+const BUZZ = [
+  ['🔔 Klassisk', t => seq([523, 784], t, .07, .12, 'square', .12)],
+  ['🔫 Laser', t => sweep(1800, 180, t, .28, 'sawtooth', .14)],
+  ['🦘 Boing', t => { sweep(160, 560, t, .12, 'sine', .32); sweep(560, 220, t + .12, .28, 'sine', .28); }],
+  ['🪙 Mynt', t => { tone(988, t, .08, 'square', .11); tone(1319, t + .08, .38, 'square', .11); }],
+  ['🚗 Tut-tut', t => [0, .22].forEach(d => { tone(330, t + d, .16, 'sawtooth', .12); tone(415, t + d, .16, 'sawtooth', .1); })],
+  ['😗 Plystre', t => { sweep(900, 1900, t, .18, 'sine', .2); sweep(1900, 1000, t + .2, .22, 'sine', .2); }],
+  ['🤖 Robot', t => seq([220, 440, 330, 660, 277, 554], t, .06, .055, 'square', .11)],
+  ['🚀 Romskip', t => { sweep(180, 1700, t, .5, 'triangle', .22); noise(t, .5, .08, 3000, 'highpass'); }],
+  ['🚨 Sirene', t => [0, .4].forEach(d => { sweep(600, 1050, t + d, .2, 'sine', .2); sweep(1050, 600, t + d + .2, .2, 'sine', .2); })],
+  ['✨ Pling', t => { tone(1568, t, .55, 'sine', .25); tone(2093, t + .02, .45, 'sine', .12); }],
+  ['💨 Promp', t => { sweep(120, 52, t, .45, 'sawtooth', .26); noise(t, .45, .16, 140, 'lowpass'); }],
+  ['🦆 Kvakk', t => [0, .15].forEach(d => sweep(720, 380, t + d, .1, 'sawtooth', .2))],
+  ['🥁 Trommer', t => { sweep(170, 48, t, .16, 'sine', .45); noise(t + .16, .1, .28, 2200); sweep(170, 48, t + .3, .16, 'sine', .45); noise(t + .3, .35, .22, 6000, 'highpass'); }],
+  ['🪄 Tryllestav', t => seq([1047, 1319, 1568, 2093, 2637, 3136], t, .06, .16, 'sine', .16)],
+  ['⏰ Alarm', t => seq([880, 660, 880, 660, 880, 660], t, .09, .08, 'square', .11)],
+  ['🍄 Power-up', t => seq([262, 330, 392, 523, 659, 784, 1047], t, .05, .09, 'square', .11)],
+  ['🫧 Blubb', t => [[300, 0], [420, .11], [560, .2]].forEach(([f, d]) => sweep(f, f * 3, t + d, .09, 'sine', .3))],
+  ['🎺 Fanfare', t => { seq([523, 523, 523], t, .11, .09, 'sawtooth', .12); tone(784, t + .33, .45, 'sawtooth', .13); tone(659, t + .33, .45, 'triangle', .1); }],
+  ['🛎 Gong', t => { tone(110, t, 1.3, 'sine', .38); tone(165, t, 1.1, 'sine', .16); tone(277, t, .8, 'triangle', .08); }],
+  ['🐱 Mjau', t => { sweep(520, 950, t, .16, 'triangle', .22); sweep(950, 430, t + .16, .34, 'triangle', .22); }],
+];
+function playBuzz(i) { if (!DB.settings.sfx) return; const c = actx(); if (c) BUZZ[(i || 0) % BUZZ.length][1](c.currentTime); }
+
 const midi = n => 440 * Math.pow(2, (n - 69) / 12);
 const Music = {
   on: false, timer: null, step: 0, next: 0, STEP: 60 / 112 / 4,
@@ -732,7 +785,8 @@ function speak(text) {
       else if ('speechSynthesis' in window) {
         speechSynthesis.cancel();
         const u = new SpeechSynthesisUtterance(text); u.lang = 'nb-NO'; u.rate = 1.05;
-        const v = speechSynthesis.getVoices().find(v => /^(nb|no)/i.test(v.lang)); if (v) u.voice = v;
+        const vs = speechSynthesis.getVoices().filter(v => /^(nb|no)/i.test(v.lang));
+        const v = vs.find(v => /natural|premium|enhanced|forbedret/i.test(v.name)) || vs.find(v => /google/i.test(v.name)) || vs[0]; if (v) u.voice = v;
         u.onend = fin; u.onerror = fin; speechSynthesis.speak(u);
       } else fin();
     } catch (e) { fin(); }
@@ -928,7 +982,7 @@ document.addEventListener('click', e => {
   const go = e.target.closest('[data-go]');
   if (go) { sfx.click(); const id = go.dataset.go; RENDER[id] && RENDER[id](); show(id); }
 });
-function gp(p) { return { id: p.id, name: p.name, av: p.av, grade: p.grade, done: 0, correct: 0, skipped: 0, wrong: 0, time: 0, log: [], cur: null, points: 0, penalties: 0, streak: 0, maxStreak: 0 }; }
+function gp(p) { return { id: p.id, name: p.name, av: p.av, grade: p.grade, buzz: p.buzz || 0, done: 0, correct: 0, skipped: 0, wrong: 0, time: 0, log: [], cur: null, points: 0, penalties: 0, streak: 0, maxStreak: 0 }; }
 function setProblem(el, p) {
   const text = p.eq ? p.q : p.q + ' = ?';
   el.style.setProperty('--len', Math.max(4, text.length));
@@ -1122,7 +1176,7 @@ function dBuzz(i) {
   if (!G.running || paused || D.variant !== 'buzz' || D.between || D.buzzer >= 0 || D.out[i] || !D.qIndex) return;
   D.qLeft = Math.max(5000, D.qLeft - (performance.now() - D.qArmedAt));
   clearTimeout(T.dQ);
-  D.buzzer = i; D.turn = i; fresh(); sfx.buzz();
+  D.buzzer = i; D.turn = i; fresh(); playBuzz(D.players[i].buzz);
   dHeard(0, '', ''); dHeard(1, '', '');
   dAnswerWindow(i);
 }
@@ -1247,6 +1301,7 @@ async function rrAsk(announce, force) {
   stopListen(); clearTimeout(T.rTimer); clearInterval(T.rTick);
   if (RR.read || force) {
     RR.speaking = true; $('#rrSub').textContent = '🔊 Hør etter …';
+    if (announce && G.mode === 'party') { playBuzz(p.buzz); await sleep(500); if (tok !== RR.token || !G.running || paused) return; }
     await speak((announce && RR.players.length > 1 ? `${p.name} sin tur. ` : '') + speakable(p.cur));
     if (tok !== RR.token || !G.running || paused) return;
     RR.speaking = false; fresh(); await sleep(220);
@@ -1382,7 +1437,7 @@ const E = {};
 $('#edGrade').innerHTML = GRADES.slice(1).map((g, i) => `<option value="${i + 1}">${g.name}</option>`).join('');
 function openEditor(id, back) {
   const p = id ? prof(id) : null;
-  Object.assign(E, { id, back, av: p ? { ...p.av } : randAv(), age: p ? p.age : 10, armed: false });
+  Object.assign(E, { id, back, av: p ? { ...p.av } : randAv(), age: p ? p.age : 10, armed: false, buzz: p ? p.buzz || 0 : rnd(20) });
   $('#edTitle').textContent = p ? 'Endre spiller' : 'Ny spiller';
   $('#edName').value = p ? p.name : '';
   $('#edGrade').value = p ? p.grade : gradeForAge(E.age);
@@ -1396,12 +1451,14 @@ function drawEditor() {
   $('#edCol').innerHTML = AV_COL.map((c, i) => `<button data-col="${i}" style="background:${c}" class="${E.av.col === i ? 'on' : ''}" aria-label="Farge ${i + 1}"></button>`).join('');
   $('#edBg').innerHTML = AV_BG.map((c, i) => `<button data-bg="${i}" style="background:${c}" class="${E.av.bg === i ? 'on' : ''}" aria-label="Bakgrunn ${i + 1}"></button>`).join('');
   $('#edGradeInfo').textContent = GRADES[+$('#edGrade').value].info;
+  $('#edBuzz').innerHTML = BUZZ.map(([n], i) => `<button data-buzz="${i}" class="${E.buzz === i ? 'on' : ''}">${n}</button>`).join('');
 }
 $('#editor').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.part) { const k = b.dataset.part; E.av[k] = (E.av[k] + +b.dataset.d + AV_N[k]) % AV_N[k]; sfx.pop(); drawEditor(); }
   else if (b.dataset.col) { E.av.col = +b.dataset.col; sfx.pop(); drawEditor(); }
   else if (b.dataset.bg) { E.av.bg = +b.dataset.bg; sfx.pop(); drawEditor(); }
+  else if (b.dataset.buzz) { E.buzz = +b.dataset.buzz; playBuzz(E.buzz); drawEditor(); }
 });
 $('#edRandom').onclick = () => { E.av = randAv(); sfx.pop(); drawEditor(); };
 const setAge = d => { E.age = Math.max(4, Math.min(99, E.age + d)); $('#edGrade').value = gradeForAge(E.age); sfx.pop(); drawEditor(); };
@@ -1413,7 +1470,7 @@ $('#edSave').onclick = () => {
   const name = $('#edName').value.trim() || `Spiller ${DB.players.length + (E.id ? 0 : 1)}`;
   let p = E.id && prof(E.id);
   if (!p) { p = newProfile(name, E.age); DB.players.push(p); if (E.back === 'setup') pickPlayer(p.id); }
-  Object.assign(p, { name, age: E.age, grade: +$('#edGrade').value, av: { ...E.av } });
+  Object.assign(p, { name, age: E.age, grade: +$('#edGrade').value, av: { ...E.av }, buzz: E.buzz });
   save(); sfx.ok(); closeEditor();
 };
 $('#edDelete').onclick = () => {
@@ -1427,7 +1484,7 @@ const LIMITS = { duel: [2, 2], party: [2, 8], train: [1, 1] };
 const TITLES = { duel: '⚔️ Duell', party: '🎉 Fest', train: '🎯 Trening' };
 function openSetup(mode) {
   const L = DB.last[mode] || {};
-  Object.assign(S, { mode, sel: (L.sel || []).filter(prof), variant: L.variant || 'turn', count: L.count || (mode === 'party' ? 5 : 10), grade: L.grade || 4, limit: L.limit === undefined ? 10 : L.limit, type: L.type || 'sprint',
+  Object.assign(S, { mode, sel: (L.sel || []).filter(prof), variant: L.variant || 'turn', count: L.count || (mode === 'party' ? 5 : 10), grade: L.grade || 4, limit: L.limit === undefined ? 10 : L.limit, type: L.type || 'sprint', lvl: { ...(L.lvl || {}) },
     input: DB.last.input || 'voice', ops: (DB.last.ops && DB.last.ops.length ? DB.last.ops : ALL_OPS).slice() });
   if (!S.sel.length) S.sel = DB.players.slice(0, mode === 'train' ? 1 : mode === 'duel' ? 2 : 4).map(p => p.id);
   renderSetup(); show('setup');
@@ -1445,8 +1502,10 @@ function renderSetup() {
   const who = m === 'duel' ? 'Velg to spillere (1 sitter nederst, 2 øverst)' : m === 'party' ? 'Velg 2–8 spillere i den rekkefølgen dere vil spille' : 'Hvem skal trene?';
   let h = `<div class="card"><p class="lbl">${who}</p><div class="pick">${DB.players.map(p => {
     const n = S.sel.indexOf(p.id);
-    return `<button data-pick="${p.id}" class="${n >= 0 ? 'on' : ''}">${n >= 0 && max > 1 ? `<span class="n">${n + 1}</span>` : ''}${av(p.av)}<b>${esc(p.name)}</b><small>${GRADES[p.grade].name}</small></button>`;
-  }).join('')}<button class="add" data-add><i>＋</i>Ny spiller</button></div></div>`;
+    const ov = S.lvl[p.id] && S.lvl[p.id] !== p.grade;
+    return `<button data-pick="${p.id}" class="${n >= 0 ? 'on' : ''}">${n >= 0 && max > 1 ? `<span class="n">${n + 1}</span>` : ''}${av(p.av)}<b>${esc(p.name)}</b><small${ov ? ' style="color:var(--gold)"' : ''}>${GRADES[ov ? S.lvl[p.id] : p.grade].name}${ov ? ' ✎' : ''}</small></button>`;
+  }).join('')}<button class="add" data-add><i>＋</i>Ny spiller</button></div>
+  <p class="note" style="margin-top:10px">Hold inne på en spiller for å endre nivået bare i denne kampen.</p></div>`;
   if (m === 'duel') {
     h += `<div class="card stack"><div><p class="lbl">Spillmåte</p>${seg('variant', [['turn', '🔁 Annenhver tur'], ['buzz', '🔔 Buzzer']])}</div>
       <p class="note">${S.variant === 'buzz' ? `Begge får samme stykke. Førstemann på buzzeren har ${BUZZ_SECONDS} sekunder på å svare. Riktig gir +1, for sent gir −1.` : 'Dere får hvert deres stykke på eget nivå. Kortest total tid vinner.'}</p>
@@ -1468,7 +1527,31 @@ function renderSetup() {
   $('#suStart').textContent = S.sel.length < min ? (min === 2 ? 'Velg minst to spillere' : 'Velg en spiller') : 'Start!';
   const g = $('#suGrade'); if (g) g.onchange = () => { S.grade = +g.value; };
 }
+/* Hold inne på en spiller: nivå bare for denne kampen */
+let lpTimer = null, lpFired = false, lpXY = null, lvlId = null;
+const lpCancel = () => { clearTimeout(lpTimer); lpTimer = null; };
+$('#suBody').addEventListener('pointerdown', e => {
+  const b = e.target.closest('[data-pick]'); if (!b) return;
+  lpFired = false; lpXY = [e.clientX, e.clientY]; lpCancel();
+  lpTimer = setTimeout(() => { lpFired = true; sfx.pop(); openLvl(b.dataset.pick); }, 550);
+});
+$('#suBody').addEventListener('pointermove', e => { if (lpTimer && lpXY && Math.hypot(e.clientX - lpXY[0], e.clientY - lpXY[1]) > 12) lpCancel(); });
+['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => $('#suBody').addEventListener(ev, lpCancel));
+$('#suBody').addEventListener('contextmenu', e => { if (e.target.closest('[data-pick]')) e.preventDefault(); });
+function openLvl(id) { lvlId = id; drawLvl(); $('#lvl').classList.remove('hidden'); }
+function drawLvl() {
+  const p = prof(lvlId), g = S.lvl[lvlId] || p.grade;
+  $('#lvlAv').innerHTML = av(p.av); $('#lvlName').textContent = p.name;
+  $('#lvlOut').textContent = GRADES[g].name;
+  $('#lvlInfo').textContent = GRADES[g].info + (g !== p.grade ? ` (Lagret nivå: ${GRADES[p.grade].name})` : '');
+}
+const lvlStep = d => { const p = prof(lvlId); S.lvl[lvlId] = Math.max(1, Math.min(10, (S.lvl[lvlId] || p.grade) + d)); sfx.pop(); drawLvl(); };
+$('#lvlDown').onclick = () => lvlStep(-1); $('#lvlUp').onclick = () => lvlStep(1);
+$('#lvlReset').onclick = () => { delete S.lvl[lvlId]; drawLvl(); };
+$('#lvlDone').onclick = () => { $('#lvl').classList.add('hidden'); if (!S.sel.includes(lvlId) && S.sel.length < LIMITS[S.mode][1]) S.sel.push(lvlId); renderSetup(); };
+
 $('#suBody').addEventListener('click', e => {
+  if (lpFired) { lpFired = false; return; }
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.pick) pickPlayer(b.dataset.pick);
   else if (b.dataset.add !== undefined) return openEditor(null, 'setup');
@@ -1480,11 +1563,12 @@ $('#suBody').addEventListener('click', e => {
 $('#suStart').onclick = () => {
   const profs = S.sel.map(prof).filter(Boolean), m = S.mode;
   if (profs.length < LIMITS[m][0]) return;
-  DB.last[m] = { sel: S.sel.slice(), variant: S.variant, count: S.count, grade: S.grade, limit: S.limit, type: S.type };
+  DB.last[m] = { sel: S.sel.slice(), variant: S.variant, count: S.count, grade: S.grade, limit: S.limit, type: S.type, lvl: { ...S.lvl } };
   DB.last.input = S.input; DB.last.ops = S.ops.slice(); save();
   const cfg = JSON.parse(JSON.stringify(S));
   G.again = () => {
-    const ps = cfg.sel.map(prof).filter(Boolean); if (ps.length < LIMITS[cfg.mode][0]) return toMenu();
+    const ps = cfg.sel.map(prof).filter(Boolean).map(p => ({ ...p, grade: cfg.lvl[p.id] || p.grade }));
+    if (ps.length < LIMITS[cfg.mode][0]) return toMenu();
     G.input = canVoice() ? cfg.input : 'keys'; G.ops = cfg.ops;
     if (cfg.mode === 'duel') startDuel(ps, cfg.variant, cfg.count, cfg.grade);
     else if (cfg.mode === 'party') startRR('party', ps, { count: cfg.count, limit: cfg.limit });
