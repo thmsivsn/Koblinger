@@ -14,6 +14,7 @@
     --p1:#3c82f6; --p2:#f59e0b;
     --good:#22c55e; --bad:#ef4444; --skip:#eab308;
     --radius:16px;
+    color-scheme:dark;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
   html,body{height:100%; margin:0}
@@ -100,7 +101,7 @@
     flex:0 0 auto; height:46px; display:flex; align-items:center; justify-content:center; gap:10px;
     background:#0b0d18; border-top:1px solid var(--line); border-bottom:1px solid var(--line);
   }
-  .mic{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); font-weight:700}
+  .mic{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted); font-weight:700; background:none; border:0}
   .mic i{width:12px; height:12px; border-radius:50%; background:#555; display:inline-block}
   .mic.on i{background:var(--bad); animation:pulse 1.2s infinite}
   @keyframes pulse{50%{opacity:.35}}
@@ -173,7 +174,7 @@
 <div id="game" class="hidden">
   <section class="half p2" data-p="1"></section>
   <div class="mid">
-    <span class="mic" id="mic"><i></i><span id="micTxt">Mikrofon av</span></span>
+    <button class="mic" id="mic"><i></i><span id="micTxt">Mikrofon av</span></button>
     <button id="pauseBtn">⏸ Pause</button>
   </div>
   <section class="half p1" data-p="0"></section>
@@ -387,6 +388,7 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const Voice = {
   rec: null, wanted: false, minIndex: 0,
   start() {
+    if (Dict) return dictStart();
     if (!SR) return;
     this.wanted = true;
     if (!this.rec) {
@@ -406,8 +408,45 @@ const Voice = {
     this._go();
   },
   _go() { try { this.rec.start(); } catch (e) {} },
-  stop() { this.wanted = false; if (this.rec) try { this.rec.abort(); } catch (e) {} setMic(false); },
+  stop() { if (Dict) { Dict.stop().catch(() => {}); setMic(false); return; } this.wanted = false; if (this.rec) try { this.rec.abort(); } catch (e) {} setMic(false); },
 };
+/* Claude-artifakt: plattformens diktering (fungerer i Chrome-nettleser) */
+let Dict = null, dictNoLang = false;
+function dictStart() {
+  Dict.start(dictNoLang ? undefined : { language: 'nb' }).catch(err => {
+    const c = err && err.code;
+    if (c === 'not_granted') return micDenied();
+    if (c === 'unavailable' && !dictNoLang) { dictNoLang = true; }
+    micHint();
+  });
+}
+function micHint() { if (G.running && !G.paused && G.mode === 'voice') { setMic(false); $('#micTxt').textContent = '🎤 Trykk her for å lytte'; } }
+function setupDict(d) {
+  Dict = d;
+  d.onPartial(({ text }) => handleText(text, false));
+  d.onFinal(({ text }) => handleText(text, true));
+  d.onState(({ state, reason }) => {
+    setMic(state === 'listening' || state === 'starting');
+    if (state === 'idle' && reason && reason !== 'stopped') {
+      if (reason === 'not_granted') micDenied(); else micHint();
+    }
+  });
+  $('#srWarn').classList.add('hidden');
+  if (!SR) document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === 'voice'));
+}
+try { if (window.claude && window.claude.use) window.claude.use('dictation').then(d => { if (d) setupDict(d); }).catch(() => {}); } catch (e) {}
+
+function handleText(text, final) {
+  if (!(G.running && !G.paused && G.awaiting)) return;
+  if (final && performance.now() < (G.ignoreFinalUntil || 0)) return;
+  const p = G.players[G.turn], heard = String(text || '').trim();
+  if (!heard) return;
+  showHeard(G.turn, `«${heard}»`, '');
+  const nums = parseNumbers(heard);
+  if (nums.includes(p.cur.a)) return correct(G.turn, heard);
+  if (final && nums.length) wrong(G.turn, `«${heard}» – ikke riktig`);
+}
+
 function setMic(on) {
   $('#mic').classList.toggle('on', on);
   $('#micTxt').textContent = on ? 'Lytter …' : (G.mode === 'keys' ? 'Tastatur' : 'Mikrofon av');
@@ -507,7 +546,7 @@ const fmtTime = ms => (ms / 1000).toFixed(1).replace('.', ',') + ' s';
 function startGame() {
   G.count = +$('#countSeg .on').dataset.v;
   G.mode = $('#modeSeg .on').dataset.v;
-  if (!SR) G.mode = 'keys';
+  if (!SR && !Dict) G.mode = 'keys';
   G.players = [0, 1].map(i => ({
     name: ($('#n' + (i + 1)).value.trim() || `Spiller ${i + 1}`),
     grade: +$('#g' + (i + 1)).value,
@@ -562,6 +601,7 @@ function finishTurn(i, outcome, penalty = 0) {
 function correct(i, heard) {
   if (!G.awaiting || G.turn !== i) return;
   const ans = G.players[i].cur.a;
+  G.ignoreFinalUntil = performance.now() + 1200;
   finishTurn(i, 'ok');
   G.players[i].correct++;
   beep([660, 990]);
@@ -664,7 +704,7 @@ function micDenied() {
   G.mode = 'keys';
   setMic(false);
   render();
-  alert('Fikk ikke tilgang til mikrofonen. Spillet bytter til tastatur. Gi nettleseren lov til å bruke mikrofonen for å svare med stemmen.');
+  $('#micTxt').textContent = 'Mikrofon blokkert – bruk tastatur';
 }
 
 function goFullscreen() {
@@ -708,6 +748,7 @@ if (!SR) {
   document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === 'keys'));
 }
 $('#startBtn').onclick = startGame;
+$('#mic').onclick = () => { if (G.running && !G.paused && G.mode === 'voice') Voice.start(); };
 $('#pauseBtn').onclick = () => pause(true);
 $('#resumeBtn').onclick = () => pause(false);
 $('#quitBtn').onclick = toMenu;
