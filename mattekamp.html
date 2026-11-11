@@ -372,6 +372,7 @@
   <h2 style="margin:0">Pause</h2>
   <button class="btn green big" id="resumeBtn">▶ Fortsett</button>
   <button class="btn big" id="quitBtn">✕ Avslutt spillet</button>
+  <p class="note" id="engInfo"></p>
 </div>
 
 <script>
@@ -1015,6 +1016,8 @@ window.nativeSpeech = (text, final, alt) => {
   if (!alt) return handleText(text, final);
   if (IN.on && !paused && parseNumbers(text).includes(IN.answer)) gotCorrect();
 };
+/* Android forteller hvilken gjenkjenner som brukes – vises på pauseskjermen, nyttig ved feilsøking */
+window.nativeSpeechInfo = (engine, lang) => { $('#engInfo').textContent = `🎤 ${engine === 'device' ? 'På telefonen' : 'Via nett'} · ${lang}`; };
 window.nativeSpeechState = st => { if (st === 'listening') setMic(true); else if (st === 'denied') micDenied(); else if (st === 'idle') setMic(false); else micHint(); };
 function dictStart() {
   Dict.start(dictNoLang ? undefined : { language: Voice.langs[0].slice(0, 2) }).catch(err => {

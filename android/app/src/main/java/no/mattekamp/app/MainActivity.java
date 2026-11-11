@@ -9,6 +9,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.speech.RecognitionListener;
+import android.speech.RecognitionSupport;
+import android.speech.RecognitionSupportCallback;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
@@ -23,6 +25,9 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.Locale;
 
 /**
@@ -33,26 +38,31 @@ import java.util.Locale;
  * Appen svarer med window.nativeSpeech(tekst, ferdig, alternativ),
  * window.nativeSpeechState(status) og window.nativeTTSDone().
  */
-public class MainActivity extends Activity implements RecognitionListener {
+public class MainActivity extends Activity {
     private final Handler main = new Handler(Looper.getMainLooper());
     private WebView web;
-    private SpeechRecognizer recognizer;
     private TextToSpeech tts;
     private boolean ttsReady = false;
     private boolean wanted = false;
     private int utterance = 0;
-    /** Antall ord i den pågående lytteøkten som spillet har bedt oss glemme («reset»). */
-    private int skipWords = 0;
     private String lastHeard = "";
+    /** Tekst som var hørt da spillet sist ba oss glemme («reset»). Fjernes fra starten av nye resultater. */
+    private String base = "";
     private boolean sessionActive = false;
     /** Språkene spilleren som har tur svarer på. Det første er hovedspråket. */
     private String[] languages = {"nb-NO"};
 
-    /** Ord gjenkjenneren bør være ekstra oppmerksom på (Android 13+). */
-    private static final String[] BIAS = {
-            "null", "en", "to", "tre", "fire", "fem", "seks", "sju", "syv", "åtte", "ni", "ti", "elleve", "tolv",
-            "tretten", "fjorten", "femten", "seksten", "sytten", "atten", "nitten", "tjue", "tretti", "førti",
-            "femti", "seksti", "sytti", "åtti", "nitti", "hundre", "tusen", "minus", "pass", "gjenta"};
+    /** Vanlig gjenkjenner (via nett) og gjenkjenner på selve telefonen (Android 13+). */
+    private SpeechRecognizer online;
+    private SpeechRecognizer device;
+    private SpeechRecognizer active;
+    private boolean segmented = false;
+    private int generation = 0;
+    private boolean supportChecked = false;
+    private boolean checking = false;
+    private List<String> deviceLangs = new ArrayList<>();
+    private List<String> deviceSupported = new ArrayList<>();
+    private final Set<String> downloadAsked = new HashSet<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -101,19 +111,21 @@ public class MainActivity extends Activity implements RecognitionListener {
     protected void onPause() {
         super.onPause();
         sessionActive = false;
-        if (recognizer != null) recognizer.cancel();
+        generation++;
+        if (active != null) active.cancel();
         if (tts != null) tts.stop();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (wanted && recognizer != null) listen();
+        if (wanted && supportChecked) listen();
     }
 
     @Override
     protected void onDestroy() {
-        if (recognizer != null) recognizer.destroy();
+        if (online != null) online.destroy();
+        if (device != null) device.destroy();
         if (tts != null) tts.shutdown();
         super.onDestroy();
     }
@@ -166,16 +178,13 @@ public class MainActivity extends Activity implements RecognitionListener {
             String[] next = command.substring(5).split(",");
             if (next.length == 0 || next[0].isEmpty() || Arrays.equals(next, languages)) return;
             languages = next;
-            // Nytt språk krever en ny lytteøkt.
-            if (wanted && recognizer != null) {
-                recognizer.cancel();
-                listen();
-            }
+            if (wanted && supportChecked) listen();   // nytt språk krever en ny lytteøkt
             return;
         }
         switch (command) {
             case "start":
                 wanted = true;
+                if (!downloadAsked.isEmpty()) supportChecked = false;   // en språkpakke kan ha blitt ferdig nedlastet
                 if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                     requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, 1);
                 } else {
@@ -185,14 +194,15 @@ public class MainActivity extends Activity implements RecognitionListener {
             case "stop":
                 wanted = false;
                 sessionActive = false;
-                if (recognizer != null) recognizer.cancel();
+                generation++;
+                if (active != null) active.cancel();
                 state("idle");
                 break;
             case "reset":
-                // Ikke start lyttingen på nytt: det gir et hull på et halvt sekund der svar går tapt.
-                // Vi hopper heller over ordene som allerede er hørt i denne økten.
-                if (sessionActive) skipWords = countWords(lastHeard);
-                else if (wanted && recognizer != null) listen();
+                // Ikke start lyttingen på nytt (det gir et hull der svar går tapt).
+                // Husk hva som er hørt, og fjern det fra starten av det som kommer etterpå.
+                if (sessionActive) base = lastHeard;
+                else if (wanted && supportChecked) listen();
                 break;
             default:
                 break;
@@ -213,121 +223,208 @@ public class MainActivity extends Activity implements RecognitionListener {
 
     private void begin() {
         if (!wanted) return;
-        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-            state("unavailable");
+        if (!supportChecked && Build.VERSION.SDK_INT >= 33 && SpeechRecognizer.isOnDeviceRecognitionAvailable(this)) {
+            checkDeviceSupport();
             return;
         }
-        if (recognizer == null) {
-            recognizer = SpeechRecognizer.createSpeechRecognizer(this);
-            recognizer.setRecognitionListener(this);
-        }
+        supportChecked = true;
         listen();
     }
 
-    private void listen() {
+    /** Spør telefonen hvilke språk den kan gjenkjenne uten nett (Android 13+). */
+    private void checkDeviceSupport() {
+        if (checking) return;
+        checking = true;
+        try {
+            if (device == null) device = SpeechRecognizer.createOnDeviceSpeechRecognizer(this);
+            device.checkRecognitionSupport(intentFor(languages[0], false), getMainExecutor(), new RecognitionSupportCallback() {
+                @Override
+                public void onSupportResult(RecognitionSupport support) {
+                    deviceLangs = new ArrayList<>(support.getInstalledOnDeviceLanguages());
+                    deviceSupported = new ArrayList<>(support.getSupportedOnDeviceLanguages());
+                    deviceSupported.addAll(support.getPendingOnDeviceLanguages());
+                    finish();
+                }
+
+                @Override
+                public void onError(int error) {
+                    finish();
+                }
+
+                private void finish() {
+                    supportChecked = true;
+                    checking = false;
+                    if (wanted) listen();
+                }
+            });
+        } catch (Exception e) {
+            supportChecked = true;
+            checking = false;
+            listen();
+        }
+    }
+
+    /** Finner språket i en liste fra telefonen. «zh-CN» kan hete «cmn-Hans-CN» der. */
+    private static String match(List<String> list, String lang) {
+        for (String tag : list) if (tag.equalsIgnoreCase(lang)) return tag;
+        String two = lang.substring(0, 2).toLowerCase(Locale.ROOT);
+        for (String tag : list) {
+            String t = tag.toLowerCase(Locale.ROOT);
+            if (t.startsWith(two) || (two.equals("zh") && t.startsWith("cmn-hans")) || (two.equals("nb") && t.startsWith("no"))) return tag;
+        }
+        return null;
+    }
+
+    private Intent intentFor(String lang, boolean continuous) {
         Intent i = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, languages[0]);
-        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, languages[0]);
-        if (languages.length > 1) {
-            // Ekstra språk for spillere med flere språk. Ikke alle telefoner støtter dette.
-            i.putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", Arrays.copyOfRange(languages, 1, languages.length));
-        }
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang);
+        i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, lang);
         i.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
         i.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5);
         i.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
-        // Hold økten åpen lenger, så den ikke avsluttes midt mellom to svar.
-        i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L);
-        i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2500L);
-        i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 4000L);
-        if (Build.VERSION.SDK_INT >= 33 && languages[0].startsWith("nb")) {
-            i.putStringArrayListExtra(RecognizerIntent.EXTRA_BIASING_STRINGS, new ArrayList<>(Arrays.asList(BIAS)));
+        if (continuous && Build.VERSION.SDK_INT >= 33) {
+            // Sammenhengende lytting: resultatene kommer bit for bit, uten at økten avsluttes.
+            i.putExtra(RecognizerIntent.EXTRA_SEGMENTED_SESSION, RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS);
+            i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 800L);
         }
-        skipWords = 0;
+        return i;
+    }
+
+    private void listen() {
+        generation++;
+        if (active != null) active.cancel();
+        sessionActive = false;
+        String lang = languages[0];
+        String tag = device != null ? match(deviceLangs, lang) : null;
+        boolean onDevice = tag != null;
+
+        // Språket kan lastes ned til telefonen: be om det én gang, og bruk nett imens.
+        if (!onDevice && device != null && Build.VERSION.SDK_INT >= 33) {
+            String downloadable = match(deviceSupported, lang);
+            if (downloadable != null && downloadAsked.add(lang)) {
+                try { device.triggerModelDownload(intentFor(downloadable, false)); } catch (Exception ignored) { }
+            }
+        }
+        if (!onDevice && online == null) {
+            if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+                state("unavailable");
+                return;
+            }
+            online = SpeechRecognizer.createSpeechRecognizer(this);
+        }
+        active = onDevice ? device : online;
+        segmented = onDevice;
+        base = "";
         lastHeard = "";
         try {
-            recognizer.startListening(i);
+            active.setRecognitionListener(new Session(generation));
+            active.startListening(intentFor(onDevice ? tag : lang, onDevice));
             sessionActive = true;
             state("listening");
+            js("window.nativeSpeechInfo && window.nativeSpeechInfo('" + (onDevice ? "device" : "online") + "','" + lang + "')");
         } catch (Exception e) {
             state("error");
         }
     }
 
-    /** Androids gjenkjenner stopper etter hver setning. Start den på nytt så lenge spillet lytter. */
-    private void restart(long delayMs, boolean cancelFirst) {
+    private void restart(long delayMs) {
         sessionActive = false;
         if (!wanted) return;
+        final int gen = generation;
         main.postDelayed(() -> {
-            if (wanted && recognizer != null && !sessionActive) {
-                if (cancelFirst) recognizer.cancel();
-                listen();
-            }
+            if (wanted && gen == generation) listen();
         }, delayMs);
     }
 
-    private static int countWords(String text) {
-        String t = text.trim();
-        return t.isEmpty() ? 0 : t.split("\\s+").length;
-    }
-
-    /** Fjerner ordene spillet har bedt oss glemme fra starten av teksten. */
-    private String afterSkip(String text) {
-        if (skipWords <= 0) return text;
-        String[] words = text.trim().split("\\s+");
-        if (words.length <= skipWords) return "";
-        StringBuilder sb = new StringBuilder();
-        for (int k = skipWords; k < words.length; k++) sb.append(words[k]).append(' ');
-        return sb.toString().trim();
+    /** Fjerner det som var hørt før siste «reset» fra starten av teksten. */
+    private String fresh(String text) {
+        if (!base.isEmpty() && text.startsWith(base)) return text.substring(base.length()).trim();
+        return text;
     }
 
     private void emit(String text, boolean isFinal, boolean alt) {
         js("window.nativeSpeech && window.nativeSpeech(" + JSONObject.quote(text) + "," + isFinal + "," + alt + ")");
     }
 
-    @Override
-    public void onPartialResults(Bundle b) {
-        ArrayList<String> list = b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-        String text = list != null && !list.isEmpty() ? list.get(0) : "";
-        // Google sender ofte de ferskeste ordene som «ustabil tekst». Ta dem med, så svaret oppfattes raskere.
-        ArrayList<String> unstable = b.getStringArrayList("android.speech.extra.UNSTABLE_TEXT");
-        if (unstable != null && !unstable.isEmpty() && !unstable.get(0).isEmpty()) text = (text + " " + unstable.get(0)).trim();
-        if (text.isEmpty()) return;
-        lastHeard = text;
-        String fresh = afterSkip(text);
-        if (!fresh.isEmpty()) emit(fresh, false, false);
-    }
+    /** Lytter for én økt. Tilbakekall fra gamle økter blir ignorert. */
+    private class Session implements RecognitionListener {
+        private final int gen;
 
-    @Override
-    public void onResults(Bundle b) {
-        ArrayList<String> list = b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-        if (list != null && !list.isEmpty()) {
+        Session(int gen) {
+            this.gen = gen;
+        }
+
+        private boolean stale() {
+            return gen != generation;
+        }
+
+        private void deliver(Bundle b, boolean isFinal) {
+            ArrayList<String> list = b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+            if (list == null || list.isEmpty()) return;
+            if (!isFinal) {
+                String text = list.get(0);
+                if (text.isEmpty()) return;
+                lastHeard = text;
+                String now = fresh(text);
+                if (!now.isEmpty()) emit(now, false, false);
+                return;
+            }
             for (int k = 1; k < list.size(); k++) {
-                String alt = afterSkip(list.get(k));
+                String alt = fresh(list.get(k));
                 if (!alt.isEmpty()) emit(alt, false, true);
             }
-            String best = afterSkip(list.get(0));
+            String best = fresh(list.get(0));
             if (!best.isEmpty()) emit(best, true, false);
         }
-        restart(0, false);   // start neste økt med en gang
-    }
 
-    @Override
-    public void onError(int error) {
-        if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
-            wanted = false;
-            state("denied");
-            return;
+        @Override
+        public void onPartialResults(Bundle b) {
+            if (!stale()) deliver(b, false);
         }
-        // Stillhet eller «fant ingenting»: lytt videre med en gang. Andre feil trenger en liten pause.
-        boolean quiet = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT;
-        restart(quiet ? 0 : 250, !quiet);
-    }
 
-    @Override public void onReadyForSpeech(Bundle params) { }
-    @Override public void onBeginningOfSpeech() { }
-    @Override public void onRmsChanged(float rmsdB) { }
-    @Override public void onBufferReceived(byte[] buffer) { }
-    @Override public void onEndOfSpeech() { }
-    @Override public void onEvent(int eventType, Bundle params) { }
+        @Override
+        public void onResults(Bundle b) {
+            if (stale()) return;
+            deliver(b, true);
+            restart(0);   // økten er over: start neste med en gang
+        }
+
+        @Override
+        public void onSegmentResults(Bundle b) {
+            if (stale()) return;
+            deliver(b, true);
+            base = "";        // neste bit starter med blanke ark
+            lastHeard = "";
+        }
+
+        @Override
+        public void onEndOfSegmentedSession() {
+            if (!stale()) restart(0);
+        }
+
+        @Override
+        public void onError(int error) {
+            if (stale()) return;
+            if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                wanted = false;
+                state("denied");
+                return;
+            }
+            // Språket fantes likevel ikke på telefonen: bruk nett for dette språket.
+            if (segmented && (error == 12 || error == 13)) {
+                String tag = match(deviceLangs, languages[0]);
+                if (tag != null) deviceLangs.remove(tag);
+            }
+            boolean quiet = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT;
+            restart(quiet ? 0 : 250);
+        }
+
+        @Override public void onReadyForSpeech(Bundle params) { }
+        @Override public void onBeginningOfSpeech() { }
+        @Override public void onRmsChanged(float rmsdB) { }
+        @Override public void onBufferReceived(byte[] buffer) { }
+        @Override public void onEndOfSpeech() { }
+        @Override public void onEvent(int eventType, Bundle params) { }
+    }
 }
