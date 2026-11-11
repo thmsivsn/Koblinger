@@ -158,6 +158,13 @@
       </div>
     </div>
 
+    <div class="row">
+      <label>Fasit for den som venter</label>
+      <div class="seg" id="ansSeg">
+        <button data-v="hide" class="on">🙈 Skjul fasit</button><button data-v="show">👀 Vis fasit</button>
+      </div>
+    </div>
+
     <div id="srWarn" class="warn hidden"></div>
 
     <button id="startBtn" class="primary">Start!</button>
@@ -389,6 +396,7 @@ const Voice = {
   rec: null, wanted: false, minIndex: 0,
   start() {
     if (Dict) return dictStart();
+    if (IN_ARTIFACT) return micDenied();
     if (!SR) return;
     this.wanted = true;
     if (!this.rec) {
@@ -412,6 +420,8 @@ const Voice = {
 };
 /* Claude-artifakt: plattformens diktering (fungerer i Chrome-nettleser) */
 let Dict = null, dictNoLang = false;
+const IN_ARTIFACT = !!(window.claude && window.claude.use);
+const NO_VOICE_HERE = 'Stemme virker ikke i denne visningen (Claude-appen eller Safari på iPhone). Åpne lenken i Chrome på Android, eller bruk tastatur.';
 function dictStart() {
   Dict.start(dictNoLang ? undefined : { language: 'nb' }).catch(err => {
     const c = err && err.code;
@@ -434,7 +444,11 @@ function setupDict(d) {
   $('#srWarn').classList.add('hidden');
   if (!SR) document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === 'voice'));
 }
-try { if (window.claude && window.claude.use) window.claude.use('dictation').then(d => { if (d) setupDict(d); }).catch(() => {}); } catch (e) {}
+function noVoiceHere() {
+  $('#srWarn').textContent = NO_VOICE_HERE; $('#srWarn').classList.remove('hidden');
+  document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === 'keys'));
+}
+try { if (IN_ARTIFACT) window.claude.use('dictation').then(d => { if (d) setupDict(d); else noVoiceHere(); }).catch(noVoiceHere); } catch (e) {}
 
 function handleText(text, final) {
   if (!(G.running && !G.paused && G.awaiting)) return;
@@ -531,7 +545,7 @@ function render() {
     } else {
       const o = G.players[G.turn];
       st.textContent = `Vent – ${o.name} regner:`;
-      if (o.cur && o.done < G.count) { setProblem(prob, o.cur); showHeard(i, `Fasit: ${fmt(o.cur.a)}`, ''); }
+      if (o.cur && o.done < G.count) { setProblem(prob, o.cur); showHeard(i, G.showAns ? `Fasit: ${fmt(o.cur.a)}` : '', ''); }
     }
   });
 }
@@ -546,7 +560,8 @@ const fmtTime = ms => (ms / 1000).toFixed(1).replace('.', ',') + ' s';
 function startGame() {
   G.count = +$('#countSeg .on').dataset.v;
   G.mode = $('#modeSeg .on').dataset.v;
-  if (!SR && !Dict) G.mode = 'keys';
+  G.showAns = $('#ansSeg .on').dataset.v === 'show';
+  if ((!SR || IN_ARTIFACT) && !Dict) G.mode = 'keys';
   G.players = [0, 1].map(i => ({
     name: ($('#n' + (i + 1)).value.trim() || `Spiller ${i + 1}`),
     grade: +$('#g' + (i + 1)).value,
@@ -554,7 +569,7 @@ function startGame() {
   }));
   G.players.forEach(p => p.cur = makeProblem(p.grade));
   G.turn = G.starter; G.running = true; G.paused = false; G.awaiting = false;
-  try { localStorage.setItem('mattekamp', JSON.stringify({ n1: $('#n1').value, n2: $('#n2').value, g1: $('#g1').value, g2: $('#g2').value, c: G.count, m: G.mode })); } catch (e) {}
+  try { localStorage.setItem('mattekamp', JSON.stringify({ n1: $('#n1').value, n2: $('#n2').value, g1: $('#g1').value, g2: $('#g2').value, c: G.count, m: G.mode, f: G.showAns ? 'show' : 'hide' })); } catch (e) {}
 
   $('#setup').classList.add('hidden'); $('#game').classList.remove('hidden');
   halves.forEach(h => h.querySelector('.overlay').classList.add('hidden'));
@@ -704,7 +719,8 @@ function micDenied() {
   G.mode = 'keys';
   setMic(false);
   render();
-  $('#micTxt').textContent = 'Mikrofon blokkert – bruk tastatur';
+  $('#micTxt').textContent = 'Mikrofon ikke tilgjengelig – bruk tastatur';
+  if (IN_ARTIFACT && !Dict) noVoiceHere();
 }
 
 function goFullscreen() {
@@ -739,10 +755,11 @@ try {
     $('#n1').value = s.n1; $('#n2').value = s.n2; $('#g1').value = s.g1; $('#g2').value = s.g2;
     document.querySelectorAll('#countSeg button').forEach(b => b.classList.toggle('on', b.dataset.v == s.c));
     document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === s.m));
+    if (s.f) document.querySelectorAll('#ansSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === s.f));
   }
 } catch (e) {}
 gradeInfo();
-if (!SR) {
+if (!SR && !IN_ARTIFACT) {
   $('#srWarn').classList.remove('hidden');
   $('#srWarn').textContent = 'Denne nettleseren støtter ikke talegjenkjenning. Spillet bruker tastatur i stedet. Prøv Chrome på Android eller Safari på iPhone for å svare med stemmen.';
   document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === 'keys'));
