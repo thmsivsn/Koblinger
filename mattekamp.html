@@ -71,7 +71,7 @@
   @keyframes shake{0%,100%{translate:0} 25%{translate:-10px} 75%{translate:10px}}
 
   .hud{display:flex; align-items:center; gap:10px; font-weight:700}
-  .hud .name{color:var(--pc); font-size:18px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:35%}
+  .hud .name{color:var(--pc); font-size:18px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:42%; display:flex; align-items:center; gap:6px}
   .prog{flex:1; display:flex; gap:4px; flex-wrap:wrap; justify-content:center}
   .dot{width:12px; height:12px; border-radius:50%; background:#323a63}
   .dot.ok{background:var(--good)} .dot.skip{background:var(--skip)} .dot.now{box-shadow:0 0 0 2px var(--pc)}
@@ -134,6 +134,44 @@
   #game.buzz .half.out{opacity:.55}
   .clock.hurry{color:var(--bad)}
 
+  /* Regnearter, avatarer og historikk */
+  .chips{display:flex; flex-wrap:wrap; gap:6px}
+  .chips button{flex:1 1 auto; min-width:90px; opacity:.55}
+  .chips button.on{opacity:1; background:var(--good); color:#06240f; border-color:transparent}
+  .avatar{display:inline-grid; place-items:center; border-radius:50%; background:var(--avc,#334); line-height:1; flex:0 0 auto}
+  .avbtn{display:flex; align-items:center; gap:10px; background:#101326; text-align:left; padding:6px 10px}
+  .avbtn .avatar{width:52px; height:52px; font-size:32px}
+  .avbtn small{color:var(--muted); font-weight:600}
+  .hud .avatar{width:30px; height:30px; font-size:19px}
+  .overlay .avatar{width:min(12vh,84px); height:min(12vh,84px); font-size:min(8vh,54px)}
+  #game.keys .half.active .problem{font-size:min(7vh,16vw,calc(110vw / var(--len,5)))}
+  #game.keys .stage{gap:2px}
+  #game.keys .half.active .status{display:none}
+  #game.keys .heard{min-height:20px; font-size:16px}
+  #game.keys .typed{font-size:min(4.5vh,28px)}
+  .stage{overflow:hidden}
+  #avPicker, #history{position:fixed; inset:0; z-index:20; background:rgba(5,6,12,.96); overflow-y:auto; padding:16px;
+    padding-top:calc(16px + env(safe-area-inset-top)); padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+  .avgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(56px,1fr)); gap:8px; margin:12px 0}
+  .avgrid button{font-size:32px; min-height:58px; padding:0; background:#101326}
+  .avgrid button.on{outline:3px solid var(--good)}
+  .swatches{display:flex; flex-wrap:wrap; gap:8px; margin:8px 0 14px}
+  .swatches button{width:40px; height:40px; min-height:40px; border-radius:50%; padding:0; border:3px solid transparent}
+  .swatches button.on{border-color:#fff}
+  .hgrid{display:grid; gap:8px; margin:10px 0}
+  .hrow{background:#101326; border:1px solid var(--line); border-radius:12px; padding:10px 12px; display:flex; flex-direction:column; gap:4px}
+  .hrow .top{display:flex; justify-content:space-between; color:var(--muted); font-size:12px; font-weight:600}
+  .hrow .vs{display:flex; align-items:center; gap:8px; font-weight:700; flex-wrap:wrap}
+  .hrow .vs .avatar{width:28px; height:28px; font-size:17px}
+  .hrow .win{color:var(--good)}
+  .board{display:grid; gap:6px; margin:8px 0 4px}
+  .board div{display:flex; align-items:center; gap:10px; background:#101326; border-radius:10px; padding:8px 10px; font-weight:700}
+  .board .avatar{width:32px; height:32px; font-size:20px}
+  .board span.n{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .board small{color:var(--muted); font-weight:600}
+  .btnrow{display:flex; gap:8px; flex-wrap:wrap}
+  .btnrow button{flex:1}
+
   #pause{position:fixed; inset:0; background:rgba(5,6,12,.85); display:flex; align-items:center; justify-content:center; gap:12px; z-index:10}
   #pause button{font-size:20px; min-height:60px; padding:10px 24px}
 </style>
@@ -157,12 +195,14 @@
     <div class="players">
       <div class="pbox p1">
         <label for="n1">Spiller 1 (denne siden)</label>
+        <button class="avbtn" id="av1" data-p="0"></button>
         <input id="n1" value="Spiller 1" maxlength="14" />
         <label for="g1" id="g1lbl">Nivå</label>
         <select id="g1"></select>
       </div>
       <div class="pbox p2">
         <label for="n2">Spiller 2 (motsatt side)</label>
+        <button class="avbtn" id="av2" data-p="1"></button>
         <input id="n2" value="Spiller 2" maxlength="14" />
         <label for="g2" class="g2row">Nivå</label>
         <select id="g2" class="g2row"></select>
@@ -184,6 +224,11 @@
       </div>
     </div>
 
+    <div class="row">
+      <label>Regnearter som kan være med</label>
+      <div class="chips" id="opsChips"></div>
+    </div>
+
     <div class="row" id="ansRow">
       <label>Fasit for den som venter</label>
       <div class="seg" id="ansSeg">
@@ -194,6 +239,7 @@
     <div id="srWarn" class="warn hidden"></div>
 
     <button id="startBtn" class="primary">Start!</button>
+    <button id="histBtn" style="width:100%; margin-top:10px">📜 Kamphistorikk</button>
 
     <p class="note">
       Tips: Lås skjermrotasjonen på telefonen. Trykk «👂 Hør på nytt» hvis mikrofonen har fått med seg surreprat.
@@ -211,6 +257,27 @@
     <button id="pauseBtn">⏸ Pause</button>
   </div>
   <section class="half p1" data-p="0"></section>
+</div>
+
+<div id="avPicker" class="hidden">
+  <div class="card">
+    <h1 style="font-size:22px">Velg avatar</h1>
+    <div class="avgrid" id="avGrid"></div>
+    <label>Bakgrunnsfarge</label>
+    <div class="swatches" id="avColors"></div>
+    <button class="primary" id="avDone" style="width:100%">Ferdig</button>
+  </div>
+</div>
+
+<div id="history" class="hidden">
+  <div class="card">
+    <h1 style="font-size:22px">📜 Kamphistorikk</h1>
+    <div id="histBody"></div>
+    <div class="btnrow" style="margin-top:12px">
+      <button id="histBack" class="primary">Tilbake</button>
+      <button id="histClear">🗑 Slett historikk</button>
+    </div>
+  </div>
 </div>
 
 <div id="pause" class="hidden">
@@ -318,7 +385,47 @@ const GRADES = [
     ] },
 ];
 function gcd(a, b) { return b ? gcd(b, a % b) : a; }
-function makeProblem(grade, prevQ) {
+/* Regnearter: hver oppgave klassifiseres ut fra tegnene den bruker */
+const OPS = [
+  { k: 'add', label: '➕ Pluss' }, { k: 'sub', label: '➖ Minus' },
+  { k: 'mul', label: '✖️ Gange' }, { k: 'div', label: '➗ Deling' },
+  { k: 'pct', label: '％ Prosent' }, { k: 'pow', label: 'x² Potenser og røtter' },
+  { k: 'eq', label: 'x = ? Likninger' },
+];
+function opsOf(q) {
+  if (/x/.test(q)) return ['eq'];
+  if (/%/.test(q)) return ['pct'];
+  const s = [];
+  if (/[²³⁰¹⁴⁵⁶⁷⁸⁹√]/.test(q)) s.push('pow');
+  if (/[×·]/.test(q)) s.push('mul');
+  if (/:/.test(q)) s.push('div');
+  if (/\+/.test(q)) s.push('add');
+  if (/−/.test(q)) s.push('sub');
+  return s;
+}
+/* Pluss, minus, gange og deling som blir vanskeligere med nivået */
+const SCALED = {
+  add: g => { const [a, b] = g <= 1 ? [R(1, 5), R(1, 5)] : g <= 2 ? [R(5, 15), R(2, 9)] : g <= 4 ? [R(12, 60), R(11, 39)] : g <= 6 ? [10 * R(12, 70), 10 * R(5, 29)] : g <= 8 ? [R(26, 89), R(26, 89)] : [R(120, 480), 10 * R(11, 45)]; return P(`${a} + ${b}`, a + b); },
+  sub: g => {
+    if (g >= 7) { const a = R(-20, 30), b = R(5, 40); return P(`${fmt(a)} − ${b}`, a - b); }
+    const [a, b] = g <= 1 ? (x => [x, R(0, x)])(R(2, 10)) : g <= 2 ? (x => [x, R(2, x - 1)])(R(10, 20)) : g <= 4 ? (x => [x, R(11, x - 5)])(R(30, 99)) : (x => [x, 10 * R(5, x / 10 - 3)])(10 * R(30, 99));
+    return P(`${a} − ${b}`, a - b);
+  },
+  mul: g => { const [a, b] = g <= 3 ? [pick([2, 5, 10]), R(1, 10)] : g <= 5 ? [R(2, 10), R(2, 10)] : g <= 7 ? [R(11, 25), R(2, 9)] : [R(12, 49), R(3, 9)]; const T = g >= 7 ? '·' : '×'; return P(`${a} ${T} ${b}`, a * b); },
+  div: g => { const [b, x] = g <= 4 ? [R(2, 10), R(2, 10)] : g <= 6 ? [R(2, 9), R(11, 25)] : [R(3, 9), R(15, 45)]; return P(`${b * x} : ${b}`, x); },
+};
+function makeProblem(grade, prevQ, ops) {
+  ops = ops || G.ops;
+  const ok = p => Number.isInteger(p.a) && p.q !== prevQ && (!ops || opsOf(p.q).every(o => ops.includes(o)));
+  // 1) Valgt nivå sine egne oppgaver
+  for (let t = 0; t < 80; t++) { const p = pick(GRADES[grade].gen)(); if (ok(p)) return p; }
+  // 2) De fire regneartene, skalert til nivået
+  const basic = (ops || ['add', 'sub', 'mul', 'div']).filter(o => SCALED[o]);
+  if (basic.length) for (let t = 0; t < 20; t++) { const p = SCALED[pick(basic)](grade); if (ok(p)) return p; }
+  // 3) Nærmeste nivå som har de valgte regneartene (f.eks. likninger på lavt nivå)
+  const order = [grade];
+  for (let d = 1; d < 10; d++) { if (grade - d >= 1) order.push(grade - d); if (grade + d <= 10) order.push(grade + d); }
+  for (const g of order) for (let t = 0; t < 60; t++) { const p = pick(GRADES[g].gen)(); if (ok(p)) return p; }
   let p, tries = 0;
   do { p = pick(GRADES[grade].gen)(); } while ((p.q === prevQ || !Number.isInteger(p.a)) && ++tries < 30);
   return p;
@@ -580,11 +687,12 @@ function showHeard(i, text, cls) {
 }
 
 function render() {
+  $('#game').classList.toggle('keys', G.mode === 'keys');
   if (G.game === 'buzz') return renderBuzz();
   G.players.forEach((p, i) => {
     const h = halves[i], active = G.turn === i && G.running;
     h.classList.toggle('active', active);
-    q(i, '.name').textContent = p.name;
+    q(i, '.name').innerHTML = avatarHTML(p.av) + ' ' + esc(p.name);
     q(i, '.prog').innerHTML = Array.from({ length: G.count }, (_, k) =>
       `<span class="dot ${p.log[k] || ''} ${k === p.done && active ? 'now' : ''}"></span>`).join('');
     q(i, '.clock').textContent = fmtTime(p.time + (active && G.awaiting && !G.paused ? performance.now() - G.turnStart : 0));
@@ -618,15 +726,17 @@ function startGame() {
   G.mode = $('#modeSeg .on').dataset.v;
   G.showAns = $('#ansSeg .on').dataset.v === 'show';
   G.game = $('#gameSeg .on').dataset.v;
+  G.ops = [...document.querySelectorAll('#opsChips .on')].map(b => b.dataset.v);
   if ((!SR || IN_ARTIFACT) && !Dict && !NATIVE) G.mode = 'keys';
   G.players = [0, 1].map(i => ({
     name: ($('#n' + (i + 1)).value.trim() || `Spiller ${i + 1}`),
     grade: +$('#g' + (G.game === 'buzz' ? 1 : i + 1)).value,
     done: 0, correct: 0, skipped: 0, wrong: 0, time: 0, log: [], cur: null, typed: '', points: 0, penalties: 0,
+    av: AV[i],
   }));
   G.players.forEach(p => p.cur = makeProblem(p.grade));
   G.turn = G.starter; G.running = true; G.paused = false; G.awaiting = false;
-  try { localStorage.setItem('mattekamp', JSON.stringify({ n1: $('#n1').value, n2: $('#n2').value, g1: $('#g1').value, g2: $('#g2').value, c: G.count, m: G.mode, f: G.showAns ? 'show' : 'hide', gm: G.game })); } catch (e) {}
+  try { localStorage.setItem('mattekamp', JSON.stringify({ n1: $('#n1').value, n2: $('#n2').value, g1: $('#g1').value, g2: $('#g2').value, c: G.count, m: G.mode, f: G.showAns ? 'show' : 'hide', gm: G.game, ops: G.ops, av: AV })); } catch (e) {}
 
   G.qIndex = 0; G.buzzer = -1; G.out = [false, false]; G.between = false;
   $('#game').classList.toggle('buzz', G.game === 'buzz');
@@ -741,11 +851,13 @@ function finish() {
   const [a, b] = G.players;
   const diff = Math.abs(a.time - b.time);
   const winner = diff < 50 ? -1 : (a.time < b.time ? 0 : 1);
+  saveMatch(winner);
   beep([523, 659, 784, 1047], .15);
   halves.forEach((h, i) => {
     const me = G.players[i], o = h.querySelector('.overlay');
     const title = winner === -1 ? 'Uavgjort! 🤝' : winner === i ? 'Du vant! 🏆' : `${esc(G.players[winner].name)} vant`;
     o.innerHTML = `
+      ${avatarHTML(me.av)}
       <h2>${title}</h2>
       ${winner !== -1 ? `<div class="stats">${winner === i ? 'Du var' : esc(G.players[winner].name) + ' var'} <b>${(diff / 1000).toFixed(1).replace('.', ',')} s</b> raskere</div>` : ''}
       <div class="stats">
@@ -896,7 +1008,7 @@ function renderBuzz() {
     const h = halves[i], active = G.buzzer === i && G.running;
     h.classList.toggle('active', active);
     h.classList.toggle('out', !!G.out[i] && !G.between);
-    q(i, '.name').textContent = p.name;
+    q(i, '.name').innerHTML = avatarHTML(p.av) + ' ' + esc(p.name);
     q(i, '.prog').innerHTML = `<span class="pts">${p.points} poeng</span>&nbsp;·&nbsp;<span>${Math.max(1, G.qIndex)}/${G.count}</span>`;
     if (!active) { q(i, '.clock').textContent = ''; q(i, '.clock').classList.remove('hurry'); }
     q(i, '.keypad').classList.toggle('hidden', !keys);
@@ -920,11 +1032,13 @@ function finishBuzz() {
   $('#game').classList.remove('answering');
   const [a, b] = G.players;
   const winner = a.points === b.points ? -1 : (a.points > b.points ? 0 : 1);
+  saveMatch(winner);
   beep([523, 659, 784, 1047], .15);
   halves.forEach((h, i) => {
     const me = G.players[i], o = h.querySelector('.overlay');
     const title = winner === -1 ? 'Uavgjort! 🤝' : winner === i ? 'Du vant! 🏆' : `${esc(G.players[winner].name)} vant`;
     o.innerHTML = `
+      ${avatarHTML(me.av)}
       <h2>${title}</h2>
       <div class="stats">${esc(a.name)} <b>${a.points}</b> – <b>${b.points}</b> ${esc(b.name)}</div>
       <div class="stats">
@@ -987,23 +1101,123 @@ function setupUI() {
     ? `Begge får samme stykke. Trykk på buzzeren din først, så har du ${BUZZ_SECONDS} sekunder på å si svaret. Riktig gir +1 poeng, ikke svar i tide gir −1. Flest poeng vinner.`
     : 'Dere får hvert deres stykke, annenhver gang. Kortest total tid vinner. Feil svar gir ingen straff, men klokka går. «Hopp over» gir +5 sekunder.';
 }
+if (!SR && !IN_ARTIFACT && !NATIVE) {
+  $('#srWarn').classList.remove('hidden');
+  $('#srWarn').textContent = 'Denne nettleseren støtter ikke talegjenkjenning. Spillet bruker tastatur i stedet. Prøv Chrome på Android eller Safari på iPhone for å svare med stemmen.';
+  document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === 'keys'));
+}
+/* ---------- Avatarer ---------- */
+const AVATARS = ['🦁','🐯','🐼','🦊','🐸','🐵','🦄','🐲','🦖','🦕','🐙','🦈','🐬','🐧','🦉','🦅','🐺','🐨','🐻','🐻‍❄️','🐰','🦝','🦔','🐢','🐝','🦋','🐞','🦀',
+  '🤖','👽','👾','👻','💀','🎃','🥷','🧙','🧛','🧟','🦸','🦹','🧜','🧞','🤠','😎','🥸','🤓','🤡','👑',
+  '🚀','🛸','⚡','🔥','🌈','⭐','🌙','💎','🎮','🎸','⚽','🏀','🏒','⛷️','🛹','🏆','🍕','🍩','🌮','🍦','🧠','🦾'];
+const AV_COLORS = ['#3c82f6','#f59e0b','#22c55e','#ef4444','#a855f7','#ec4899','#14b8a6','#eab308','#64748b','#0f172a'];
+let AV = [{ e: '🦁', c: '#3c82f6' }, { e: '🐲', c: '#f59e0b' }];
+const avatarHTML = a => `<span class="avatar" style="--avc:${a && a.c || '#334'}">${a ? a.e : '🙂'}</span>`;
+function drawAvButtons() {
+  [0, 1].forEach(i => { $('#av' + (i + 1)).innerHTML = `${avatarHTML(AV[i])}<small>Bytt</small>`; });
+}
+let avFor = 0;
+function openAvPicker(i) {
+  avFor = i;
+  $('#avGrid').innerHTML = AVATARS.map(e => `<button data-e="${e}" class="${AV[i].e === e ? 'on' : ''}">${e}</button>`).join('');
+  $('#avColors').innerHTML = AV_COLORS.map(c => `<button data-c="${c}" style="background:${c}" class="${AV[i].c === c ? 'on' : ''}" aria-label="Farge ${c}"></button>`).join('');
+  $('#avPicker').classList.remove('hidden');
+}
+$('#avGrid').onclick = e => { const b = e.target.closest('button'); if (!b) return; AV[avFor] = { ...AV[avFor], e: b.dataset.e }; openAvPicker(avFor); drawAvButtons(); };
+$('#avColors').onclick = e => { const b = e.target.closest('button'); if (!b) return; AV[avFor] = { ...AV[avFor], c: b.dataset.c }; openAvPicker(avFor); drawAvButtons(); };
+$('#avDone').onclick = () => { $('#avPicker').classList.add('hidden'); saveSettings(); };
+$('#av1').onclick = () => openAvPicker(0);
+$('#av2').onclick = () => openAvPicker(1);
+function saveSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem('mattekamp') || '{}');
+    s.av = AV; s.ops = [...document.querySelectorAll('#opsChips .on')].map(b => b.dataset.v);
+    localStorage.setItem('mattekamp', JSON.stringify(s));
+  } catch (e) {}
+}
+
+/* ---------- Regnearter ---------- */
+$('#opsChips').innerHTML = OPS.map(o => `<button data-v="${o.k}" class="on">${o.label}</button>`).join('');
+$('#opsChips').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const on = document.querySelectorAll('#opsChips .on');
+  if (b.classList.contains('on') && on.length === 1) return;   // minst én regneart må være med
+  b.classList.toggle('on'); saveSettings();
+};
+
+/* ---------- Kamphistorikk (lagres på denne enheten) ---------- */
+const HIST_KEY = 'mattekamp_historikk';
+function loadHist() { try { return JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch (e) { return []; } }
+function saveMatch(winner) {
+  try {
+    const h = loadHist();
+    h.unshift({
+      t: Date.now(), game: G.game, count: G.count, ops: G.ops, winner,
+      players: G.players.map(p => ({ name: p.name, av: p.av, grade: p.grade, time: Math.round(p.time),
+        correct: p.correct, skipped: p.skipped, wrong: p.wrong, points: p.points, penalties: p.penalties })),
+    });
+    localStorage.setItem(HIST_KEY, JSON.stringify(h.slice(0, 500)));
+  } catch (e) {}
+}
+function showHistory() {
+  const h = loadHist();
+  const body = $('#histBody');
+  if (!h.length) { body.innerHTML = '<p class="lead" style="margin-top:12px">Ingen kamper ennå. Spill en kamp, så dukker den opp her.</p>'; }
+  else {
+    // Toppliste per navn
+    const tally = {};
+    h.forEach(m => m.players.forEach((p, i) => {
+      const k = p.name.toLowerCase();
+      tally[k] = tally[k] || { name: p.name, av: p.av, games: 0, wins: 0 };
+      tally[k].games++; if (m.winner === i) tally[k].wins++;
+      tally[k].av = tally[k].av || p.av;
+    }));
+    const board = Object.values(tally).sort((a, b) => b.wins - a.wins || b.games - a.games).slice(0, 8);
+    const dt = new Intl.DateTimeFormat('nb-NO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    body.innerHTML = `
+      <label style="display:block; margin-top:12px">Seire totalt (${h.length} kamper)</label>
+      <div class="board">${board.map((r, n) => `<div>${n === 0 ? '🥇' : n === 1 ? '🥈' : n === 2 ? '🥉' : '&nbsp;&nbsp;'} ${avatarHTML(r.av)}<span class="n">${esc(r.name)}</span><span>${r.wins}</span><small>av ${r.games}</small></div>`).join('')}</div>
+      <label style="display:block; margin-top:12px">Alle kamper</label>
+      <div class="hgrid">${h.map(m => {
+        const [a, b] = m.players;
+        const score = m.game === 'buzz' ? `${a.points} – ${b.points} poeng` : `${fmtTime(a.time)} – ${fmtTime(b.time)}`;
+        const lvl = m.game === 'buzz' || a.grade === b.grade ? GRADES[a.grade].name : `${GRADES[a.grade].name} / ${GRADES[b.grade].name}`;
+        const nm = (p, i) => `<span class="${m.winner === i ? 'win' : ''}">${esc(p.name)}${m.winner === i ? ' 🏆' : ''}</span>`;
+        return `<div class="hrow">
+          <div class="top"><span>${dt.format(new Date(m.t))}</span><span>${m.game === 'buzz' ? '🔔 Buzzer' : '🔁 Annenhver tur'} · ${lvl} · ${m.count} stk</span></div>
+          <div class="vs">${avatarHTML(a.av)} ${nm(a, 0)} <span style="color:var(--muted)">mot</span> ${avatarHTML(b.av)} ${nm(b, 1)}</div>
+          <div class="top"><span>${score}</span><span>${m.winner === -1 ? 'Uavgjort' : ''}</span></div>
+        </div>`;
+      }).join('')}</div>`;
+  }
+  $('#histClear').textContent = '🗑 Slett historikk'; $('#histClear').dataset.armed = '';
+  $('#histClear').classList.toggle('hidden', !h.length);
+  $('#history').classList.remove('hidden');
+}
+$('#histBtn').onclick = showHistory;
+$('#histBack').onclick = () => $('#history').classList.add('hidden');
+$('#histClear').onclick = () => {
+  const b = $('#histClear');
+  if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Trykk igjen for å slette alt'; return; }
+  try { localStorage.removeItem(HIST_KEY); } catch (e) {}
+  showHistory();
+};
+
 try {
   const s = JSON.parse(localStorage.getItem('mattekamp') || 'null');
   if (s) {
     $('#n1').value = s.n1; $('#n2').value = s.n2; $('#g1').value = s.g1; $('#g2').value = s.g2;
     document.querySelectorAll('#countSeg button').forEach(b => b.classList.toggle('on', b.dataset.v == s.c));
     document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === s.m));
+    if (s.av && s.av.length === 2) AV = s.av;
+    if (s.ops && s.ops.length) document.querySelectorAll('#opsChips button').forEach(b => b.classList.toggle('on', s.ops.includes(b.dataset.v)));
     if (s.gm) document.querySelectorAll('#gameSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === s.gm));
     if (s.f) document.querySelectorAll('#ansSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === s.f));
   }
 } catch (e) {}
 gradeInfo();
 setupUI();
-if (!SR && !IN_ARTIFACT && !NATIVE) {
-  $('#srWarn').classList.remove('hidden');
-  $('#srWarn').textContent = 'Denne nettleseren støtter ikke talegjenkjenning. Spillet bruker tastatur i stedet. Prøv Chrome på Android eller Safari på iPhone for å svare med stemmen.';
-  document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === 'keys'));
-}
+drawAvButtons();
 $('#startBtn').onclick = startGame;
 $('#mic').onclick = () => { if (G.running && !G.paused && G.mode === 'voice') Voice.start(); };
 $('#pauseBtn').onclick = () => pause(true);
