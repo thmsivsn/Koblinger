@@ -596,11 +596,11 @@ function render() {
     if (p.done >= G.count) {
       st.textContent = 'Ferdig! 🎉'; prob.textContent = ''; showHeard(i, '', '');
     } else if (active) {
-      st.textContent = keys ? 'Din tur! Tast svaret' : 'Din tur! Si svaret høyt 🎤';
+      st.textContent = !G.awaiting ? '' : keys ? 'Din tur! Tast svaret' : 'Din tur! Si svaret høyt 🎤';
       setProblem(prob, p.cur);
     } else {
       const o = G.players[G.turn];
-      st.textContent = `Vent – ${o.name} regner:`;
+      st.textContent = G.awaiting ? `Vent – ${o.name} regner:` : `${o.name} er ferdig med stykket`;
       if (o.cur && o.done < G.count) { setProblem(prob, o.cur); showHeard(i, G.showAns ? `Fasit: ${fmt(o.cur.a)}` : '', ''); }
     }
   });
@@ -655,6 +655,7 @@ function countdown(n) {
 function beginTurn() {
   if (!G.running) return;
   const p = G.players[G.turn];
+  if (p.needNew) { p.cur = makeProblem(p.grade, p.cur.q); p.needNew = false; }
   p.typed = ''; q(G.turn, '.typed').textContent = '';
   showHeard(G.turn, '', '');
   G.awaiting = true;
@@ -671,7 +672,7 @@ function finishTurn(i, outcome, penalty = 0) {
   if (NATIVE) NATIVE.postMessage('reset');
   p.log[p.done] = outcome;
   p.done++;
-  p.cur = p.done < G.count ? makeProblem(p.grade, p.cur.q) : p.cur;
+  p.needNew = p.done < G.count;   // neste stykke trekkes først når det blir din tur igjen
 }
 
 function correct(i, heard) {
