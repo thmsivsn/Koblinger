@@ -57,6 +57,8 @@ public class MainActivity extends Activity {
     private SpeechRecognizer device;
     private SpeechRecognizer active;
     private boolean segmented = false;
+    /** Lyttemåte valgt i spillet: "fast" (telefonen, fortløpende tekst), "segmented" (telefonen, sammenhengende) eller "online" (via nett). */
+    private String engineMode = "fast";
     private int generation = 0;
     private boolean supportChecked = false;
     private boolean checking = false;
@@ -174,6 +176,13 @@ public class MainActivity extends Activity {
     // ---------- Talegjenkjenning ----------
 
     private void handleSpeech(String command) {
+        if (command.startsWith("engine:")) {
+            String next = command.substring(7);
+            if (next.equals(engineMode)) return;
+            engineMode = next;
+            if (wanted && supportChecked) listen();
+            return;
+        }
         if (command.startsWith("lang:")) {
             String[] next = command.substring(5).split(",");
             if (next.length == 0 || next[0].isEmpty() || Arrays.equals(next, languages)) return;
@@ -296,8 +305,9 @@ public class MainActivity extends Activity {
         if (active != null) active.cancel();
         sessionActive = false;
         String lang = languages[0];
-        String tag = device != null ? match(deviceLangs, lang) : null;
+        String tag = device != null && !engineMode.equals("online") ? match(deviceLangs, lang) : null;
         boolean onDevice = tag != null;
+        boolean continuous = onDevice && engineMode.equals("segmented");
 
         // Språket kan lastes ned til telefonen: be om det én gang, og bruk nett imens.
         if (!onDevice && device != null && Build.VERSION.SDK_INT >= 33) {
@@ -314,15 +324,15 @@ public class MainActivity extends Activity {
             online = SpeechRecognizer.createSpeechRecognizer(this);
         }
         active = onDevice ? device : online;
-        segmented = onDevice;
+        segmented = continuous;
         base = "";
         lastHeard = "";
         try {
             active.setRecognitionListener(new Session(generation));
-            active.startListening(intentFor(onDevice ? tag : lang, onDevice));
+            active.startListening(intentFor(onDevice ? tag : lang, continuous));
             sessionActive = true;
             state("listening");
-            js("window.nativeSpeechInfo && window.nativeSpeechInfo('" + (onDevice ? "device" : "online") + "','" + lang + "')");
+            js("window.nativeSpeechInfo && window.nativeSpeechInfo('" + (continuous ? "segmented" : onDevice ? "device" : "online") + "','" + lang + "')");
         } catch (Exception e) {
             state("error");
         }
@@ -412,7 +422,7 @@ public class MainActivity extends Activity {
                 return;
             }
             // Språket fantes likevel ikke på telefonen: bruk nett for dette språket.
-            if (segmented && (error == 12 || error == 13)) {
+            if (active == device && (error == 12 || error == 13)) {
                 String tag = match(deviceLangs, languages[0]);
                 if (tag != null) deviceLangs.remove(tag);
             }

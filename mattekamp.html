@@ -325,6 +325,8 @@
   <div class="topbar"><button class="back" data-go="home" aria-label="Tilbake">‹</button><h2>Innstillinger</h2></div>
   <div class="card"><p class="lbl">Språk i spillet</p><div class="seg" id="uiLang"></div>
     <p class="note" style="margin-top:8px">Gjelder menyer og tekster. Hver spiller velger sitt eget språk for stemme og svar under Spillere.</p></div>
+  <div class="card hidden" id="engCard"><p class="lbl">Talegjenkjenning (Android)</p><div class="seg" id="engSeg"></div>
+    <p class="note" id="engNote" style="margin-top:8px"></p></div>
   <div class="card" id="setList"></div>
   <button class="btn danger" id="wipe">🗑 Slett alle spillere og kamper</button>
   <p class="note">Spillere, rekorder og kamper lagres bare på denne enheten.</p>
@@ -1017,7 +1019,11 @@ window.nativeSpeech = (text, final, alt) => {
   if (IN.on && !paused && parseNumbers(text).includes(IN.answer)) gotCorrect();
 };
 /* Android forteller hvilken gjenkjenner som brukes – vises på pauseskjermen, nyttig ved feilsøking */
-window.nativeSpeechInfo = (engine, lang) => { $('#engInfo').textContent = `🎤 ${engine === 'device' ? 'På telefonen' : 'Via nett'} · ${lang}`; };
+window.nativeSpeechInfo = (engine, lang) => { $('#engInfo').textContent = `🎤 ${{ device: 'På telefonen (rask)', segmented: 'På telefonen (sammenhengende)', online: 'Via nett' }[engine] || engine} · ${lang}`; };
+/* Android-appen: lyttemåte kan velges under Innstillinger */
+const ANDROID = !!window.AndroidBridge;
+const ENGINES = [['fast', '⚡ Rask', 'Gjenkjenner på telefonen og viser ordene mens du snakker. Anbefalt.'], ['segmented', '🔁 Jevn', 'Lytter uten pauser, men tallet kommer først når du har sluttet å snakke.'], ['online', '🌐 Via nett', 'Bruker Googles tjeneste over internett.']];
+function sendEngine() { if (ANDROID && NATIVE) NATIVE.postMessage('engine:' + (DB.settings.engine || 'fast')); }
 window.nativeSpeechState = st => { if (st === 'listening') setMic(true); else if (st === 'denied') micDenied(); else if (st === 'idle') setMic(false); else micHint(); };
 function dictStart() {
   Dict.start(dictNoLang ? undefined : { language: Voice.langs[0].slice(0, 2) }).catch(err => {
@@ -1687,6 +1693,10 @@ RENDER.history = () => {
 /* ---------- Innstillinger ---------- */
 const SETTINGS = [['music', '🎵 Musikk i menyene', 'Musikken er alltid av under spill, så mikrofonen hører dere.'], ['sfx', '🔊 Lydeffekter', ''], ['readAloud', '🗣 Les opp stykkene i trening', 'I Fest leses de alltid opp.'], ['showAns', '👀 Vis fasit til den som venter', 'Gjelder Duell med annenhver tur.']];
 RENDER.settings = () => {
+  $('#engCard').classList.toggle('hidden', !ANDROID);
+  const cur = DB.settings.engine || 'fast';
+  $('#engSeg').innerHTML = ENGINES.map(([k, l]) => `<button data-eng="${k}" class="${cur === k ? 'on' : ''}">${l}</button>`).join('');
+  $('#engNote').textContent = ENGINES.find(e => e[0] === cur)[2];
   $('#uiLang').innerHTML = Object.entries(LANGS).map(([k, l]) => `<button data-ui="${k}" class="${uiLang() === k ? 'on' : ''}">${l.flag} ${l.name}</button>`).join('');
   $('#setList').innerHTML = SETTINGS.map(([k, l, s]) => `<button class="toggle ${DB.settings[k] ? 'on' : ''}" data-tog="${k}"><span>${l}${s ? `<small>${s}</small>` : ''}</span><i></i></button>`).join('');
   $('#wipe').textContent = '🗑 Slett alle spillere og kamper'; $('#wipe').dataset.armed = '';
@@ -1696,6 +1706,10 @@ $('#setList').onclick = e => {
   const k = b.dataset.tog; DB.settings[k] = !DB.settings[k]; save();
   if (k === 'music') { if (DB.settings.music) Music.start(); else Music.stop(); }
   sfx.click(); RENDER.settings();
+};
+$('#engSeg').onclick = e => {
+  const b = e.target.closest('[data-eng]'); if (!b) return;
+  DB.settings.engine = b.dataset.eng; save(); sendEngine(); sfx.click(); RENDER.settings();
 };
 $('#uiLang').onclick = e => {
   const b = e.target.closest('[data-ui]'); if (!b) return;
@@ -1770,6 +1784,11 @@ const I18N = {
   'Nivå i denne kampen': ['Level in this game', 'Stufe in diesem Spiel', '本局难度'], 'Tilbakestill': ['Reset', 'Zurücksetzen', '恢复'], 'Ferdig': ['Done', 'Fertig', '完成'],
   'Ingen kamper ennå. Spill en runde, så dukker den opp her.': ['No games yet. Play a round and it will show up here.', 'Noch keine Spiele. Spiel eine Runde, dann erscheint sie hier.', '还没有比赛。玩一局后会显示在这里。'],
   'Flest seire': ['Most wins', 'Meiste Siege', '胜场排行'],
+  'Talegjenkjenning (Android)': ['Speech recognition (Android)', 'Spracherkennung (Android)', '语音识别（安卓）'],
+  '⚡ Rask': ['⚡ Fast', '⚡ Schnell', '⚡ 快速'], '🔁 Jevn': ['🔁 Steady', '🔁 Stetig', '🔁 连续'], '🌐 Via nett': ['🌐 Online', '🌐 Online', '🌐 联网'],
+  'Gjenkjenner på telefonen og viser ordene mens du snakker. Anbefalt.': ['Recognises on the phone and shows the words while you speak. Recommended.', 'Erkennt auf dem Handy und zeigt die Wörter beim Sprechen. Empfohlen.', '在手机上识别，说话时即显示文字。推荐。'],
+  'Lytter uten pauser, men tallet kommer først når du har sluttet å snakke.': ['Listens without breaks, but the number only arrives once you stop speaking.', 'Hört ohne Pausen zu, aber die Zahl kommt erst, wenn du aufhörst zu sprechen.', '不间断聆听，但要等你说完才出结果。'],
+  'Bruker Googles tjeneste over internett.': ["Uses Google's online service.", 'Nutzt den Online-Dienst von Google.', '使用谷歌联网服务。'],
   'Språk i spillet': ['Game language', 'Sprache im Spiel', '游戏语言'],
   'Gjelder menyer og tekster. Hver spiller velger sitt eget språk for stemme og svar under Spillere.': ['Applies to menus and text. Each player chooses their own language for voice and answers under Players.', 'Gilt für Menüs und Texte. Jeder Spieler wählt seine Sprache für Stimme und Antworten unter Spieler.', '适用于菜单和文字。每位玩家可在“玩家”中选择自己的语音和作答语言。'],
   '🎵 Musikk i menyene': ['🎵 Music in menus', '🎵 Musik in den Menüs', '🎵 菜单音乐'], 'Musikken er alltid av under spill, så mikrofonen hører dere.': ['Music is always off during play so the microphone can hear you.', 'Im Spiel ist die Musik immer aus, damit das Mikrofon euch hört.', '比赛时音乐始终关闭，以便麦克风听清你们。'],
@@ -1892,6 +1911,7 @@ new MutationObserver(ms => ms.forEach(m => { if (m.type === 'characterData') trN
   .observe(document.body, { childList: true, subtree: true, characterData: true });
 applyLang();
 
+sendEngine();
 let introGone = false;
 $('#intro').addEventListener('click', () => {
   if (introGone) return; introGone = true;
